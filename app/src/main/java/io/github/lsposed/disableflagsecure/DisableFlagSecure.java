@@ -78,8 +78,13 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
             } catch (Throwable t) {
                 XposedBridge.log(t);
             }
-        } else
-            XposedHelpers.findAndHookMethod("android.view.SurfaceControl$ScreenshotHardwareBuffer", loadPackageParam.classLoader, "containsSecureLayers", XC_MethodReplacement.returnConstant(false));
+        } else if (loadPackageParam.packageName.equals("com.flyme.systemuiex")) {
+            try {
+                XposedHelpers.findAndHookMethod("android.view.SurfaceControl$ScreenshotHardwareBuffer", loadPackageParam.classLoader, "containsSecureLayers", XC_MethodReplacement.returnConstant(false));
+            }catch (Throwable t) {
+                XposedBridge.log(t);
+            }
+        }
     }
 
 

@@ -3,5 +3,6 @@
     <string name="xposed_description">Disable FLAG_SECURE on all windows, enabling screenshots in apps that normally wouldn\'t allow it.</string>
     <string-array name="scope">
         <item>android</item>
+        <item>com.flyme.systemuiex</item>
     </string-array>
 </resources>

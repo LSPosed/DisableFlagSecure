@@ -6,6 +6,7 @@ import android.util.Log;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -75,13 +76,21 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
                         deoptimizeMethod(c, "test");
                     }
                 }
+                c = XposedHelpers.findClass("com.android.server.wm.WindowManagerService", loadPackageParam.classLoader);
+                deoptimizeMethod(c, "relayoutWindow");
+                for (int i = 0; i < 20; i++) {
+                    c = XposedHelpers.findClassIfExists("com.android.server.wm.RootWindowContainer$$ExternalSyntheticLambda" + i, loadPackageParam.classLoader);
+                    if (c != null && BiConsumer.class.isAssignableFrom(c)) {
+                        deoptimizeMethod(c, "accept");
+                    }
+                }
             } catch (Throwable t) {
                 XposedBridge.log(t);
             }
         } else if (loadPackageParam.packageName.equals("com.flyme.systemuiex")) {
             try {
                 XposedHelpers.findAndHookMethod("android.view.SurfaceControl$ScreenshotHardwareBuffer", loadPackageParam.classLoader, "containsSecureLayers", XC_MethodReplacement.returnConstant(false));
-            }catch (Throwable t) {
+            } catch (Throwable t) {
                 XposedBridge.log(t);
             }
         }

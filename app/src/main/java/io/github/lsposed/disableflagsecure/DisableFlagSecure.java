@@ -21,6 +21,7 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
     static {
         Method m = null;
         try {
+            //noinspection JavaReflectionMemberAccess
             m = XposedBridge.class.getDeclaredMethod("deoptimizeMethod", Member.class);
         } catch (Throwable t) {
             XposedBridge.log(t);
@@ -41,17 +42,6 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
         if (loadPackageParam.packageName.equals("android")) {
             try {
-                Class<?> windowsManagerServiceImpl = XposedHelpers.findClass("com.android.server.wm.WindowManagerServiceImpl", loadPackageParam.classLoader);
-                if (windowsManagerServiceImpl != null) {
-                    XposedBridge.hookAllMethods(
-                            windowsManagerServiceImpl,
-                            "notAllowCaptureDisplay",
-                            XC_MethodReplacement.returnConstant(false));
-                }
-            } catch (Throwable t) {
-                XposedBridge.log(t);
-            }
-            try {
                 Class<?> windowsState = XposedHelpers.findClass("com.android.server.wm.WindowState", loadPackageParam.classLoader);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     XposedHelpers.findAndHookMethod(
@@ -68,6 +58,19 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
                 }
             } catch (Throwable t) {
                 XposedBridge.log(t);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    XposedHelpers.findAndHookMethod(
+                            "com.android.server.wm.WindowManagerService",
+                            loadPackageParam.classLoader,
+                            "registerScreenCaptureObserver",
+                            "android.os.IBinder",
+                            "android.app.IScreenCaptureObserver",
+                            XC_MethodReplacement.DO_NOTHING);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
             }
             try {
                 deoptimizeMethod(XposedHelpers.findClass("com.android.server.wm.WindowStateAnimator", loadPackageParam.classLoader), "createSurfaceLocked");
@@ -94,6 +97,17 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
                     if (c != null && BiConsumer.class.isAssignableFrom(c)) {
                         deoptimizeMethod(c, "accept");
                     }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log(t);
+            }
+            try {
+                Class<?> windowsManagerServiceImpl = XposedHelpers.findClass("com.android.server.wm.WindowManagerServiceImpl", loadPackageParam.classLoader);
+                if (windowsManagerServiceImpl != null) {
+                    XposedBridge.hookAllMethods(
+                            windowsManagerServiceImpl,
+                            "notAllowCaptureDisplay",
+                            XC_MethodReplacement.returnConstant(false));
                 }
             } catch (Throwable t) {
                 XposedBridge.log(t);

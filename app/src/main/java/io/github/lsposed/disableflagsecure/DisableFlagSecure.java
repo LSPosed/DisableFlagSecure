@@ -102,7 +102,7 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
                 XposedBridge.log(t);
             }
             try {
-                Class<?> windowsManagerServiceImpl = XposedHelpers.findClass("com.android.server.wm.WindowManagerServiceImpl", loadPackageParam.classLoader);
+                Class<?> windowsManagerServiceImpl = XposedHelpers.findClassIfExists("com.android.server.wm.WindowManagerServiceImpl", loadPackageParam.classLoader);
                 if (windowsManagerServiceImpl != null) {
                     XposedBridge.hookAllMethods(
                             windowsManagerServiceImpl,

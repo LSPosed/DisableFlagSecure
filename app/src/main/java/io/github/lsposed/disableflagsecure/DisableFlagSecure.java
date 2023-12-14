@@ -62,7 +62,7 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 try {
                     XposedHelpers.findAndHookMethod(
-                            "com.android.server.wm.WindowManagerService",
+                            "com.android.server.wm.ActivityTaskManagerService",
                             loadPackageParam.classLoader,
                             "registerScreenCaptureObserver",
                             "android.os.IBinder",

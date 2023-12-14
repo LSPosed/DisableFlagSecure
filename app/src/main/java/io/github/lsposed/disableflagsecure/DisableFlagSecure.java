@@ -61,13 +61,15 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 try {
-                    XposedHelpers.findAndHookMethod(
-                            "com.android.server.wm.WindowManagerService",
-                            loadPackageParam.classLoader,
-                            "registerScreenCaptureObserver",
-                            "android.os.IBinder",
-                            "android.app.IScreenCaptureObserver",
-                            XC_MethodReplacement.DO_NOTHING);
+                    Class<?> windowsManagerService = XposedHelpers.findClassIfExists("com.android.server.wm.WindowManagerService", loadPackageParam.classLoader);
+                    if (windowsManagerService != null) {
+                        XposedHelpers.findAndHookMethod(
+                                windowsManagerService,
+                                "registerScreenCaptureObserver",
+                                "android.os.IBinder",
+                                "android.app.IScreenCaptureObserver",
+                                XC_MethodReplacement.DO_NOTHING);
+                    }
                 } catch (Throwable t) {
                     XposedBridge.log(t);
                 }

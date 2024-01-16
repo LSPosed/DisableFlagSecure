@@ -1,7 +1,9 @@
 package io.github.lsposed.disableflagsecure;
 
+import android.app.Activity;
 import android.os.Build;
 import android.util.Log;
+import android.widget.Toast;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
@@ -10,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
+import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -118,8 +121,16 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
             } catch (Throwable t) {
                 XposedBridge.log(t);
             }
+        } else {
+            XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    Activity activity = (Activity) param.thisObject;
+                    Toast.makeText(activity, "DFS: Incorrect module usage, remove this app from scope.", Toast.LENGTH_LONG).show();
+                    activity.finish();
+                }
+            });
         }
     }
-
 
 }

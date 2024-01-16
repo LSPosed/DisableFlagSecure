@@ -1,0 +1,45 @@
+name: Bug report
+description: Report errors or unexpected behavior.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        To make it easier for us to help you please enter detailed information below.
+  - type: input
+    attributes:
+      label: LSPosed version
+      description:  Don't use 'latest'. Specify actual version with 4 digits.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Android version
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Custom OS version
+    validations:
+      required: true
+  - type: checkboxes
+    id: latest
+    attributes:
+      label: Version requirement
+      options:
+        - label: I am using latest debug CI version
+          required: true
+  - type: textarea
+    attributes:
+      label: Logs
+      description: Please provide the log zip saved from manager.
+      placeholder: Upload logs zip by clicking the bar on the bottom.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Framework JAR
+      description: Please upload your /system/framework/framework.jar.
+      placeholder: Upload jar by clicking the bar on the bottom.
+    validations:
+      required: true

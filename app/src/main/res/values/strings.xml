@@ -4,5 +4,6 @@
     <string-array name="scope">
         <item>android</item>
         <item>com.flyme.systemuiex</item>
+        <item>com.oplus.screenshot</item>
     </string-array>
 </resources>

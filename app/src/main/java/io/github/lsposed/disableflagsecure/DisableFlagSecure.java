@@ -121,6 +121,14 @@ public class DisableFlagSecure implements IXposedHookLoadPackage {
             } catch (Throwable t) {
                 XposedBridge.log(t);
             }
+        } else if (loadPackageParam.packageName.equals("com.oplus.screenshot")) {
+            try {
+                Class<?> screenshotContext = XposedHelpers.findClassIfExists("com.oplus.screenshot.screenshot.core.ScreenshotContext", loadPackageParam.classLoader);
+                XposedBridge.hookAllMethods(screenshotContext, "setScreenshotReject", XC_MethodReplacement.DO_NOTHING);
+                XposedBridge.hookAllMethods(screenshotContext, "setLongshotReject", XC_MethodReplacement.DO_NOTHING);
+            } catch (Throwable t) {
+                XposedBridge.log(t);
+            }
         } else {
             XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
                 @Override

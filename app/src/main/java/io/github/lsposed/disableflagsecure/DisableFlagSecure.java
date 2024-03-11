@@ -1,144 +1,212 @@
 package io.github.lsposed.disableflagsecure;
 
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.os.Build;
-import android.util.Log;
 import android.widget.Toast;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Member;
+import androidx.annotation.NonNull;
+
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodReplacement;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.annotations.BeforeInvocation;
+import io.github.libxposed.api.annotations.XposedHooker;
 
-public class DisableFlagSecure implements IXposedHookLoadPackage {
-    private final static Method deoptimizeMethod;
+@SuppressLint({"PrivateApi", "BlockedPrivateApi"})
+public class DisableFlagSecure extends XposedModule {
 
-    static {
-        Method m = null;
-        try {
-            //noinspection JavaReflectionMemberAccess
-            m = XposedBridge.class.getDeclaredMethod("deoptimizeMethod", Member.class);
-        } catch (Throwable t) {
-            XposedBridge.log(t);
-        }
-        deoptimizeMethod = m;
-    }
-
-    static void deoptimizeMethod(Class<?> c, String n) throws InvocationTargetException, IllegalAccessException {
-        for (Method m : c.getDeclaredMethods()) {
-            if (deoptimizeMethod != null && m.getName().equals(n)) {
-                deoptimizeMethod.invoke(null, m);
-                Log.d("DisableFlagSecure", "Deoptimized " + m);
-            }
-        }
+    public DisableFlagSecure(XposedInterface base, ModuleLoadedParam param) {
+        super(base, param);
     }
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-        if (loadPackageParam.packageName.equals("android")) {
+    public void onSystemServerLoaded(@NonNull SystemServerLoadedParam param) {
+        var classLoader = param.getClassLoader();
+
+        try {
+            deoptimizeSystemServer(classLoader);
+        } catch (Throwable t) {
+            log("deoptimize system server failed", t);
+        }
+        try {
+            hookWindowState(classLoader);
+        } catch (Throwable t) {
+            log("hook WindowState failed", t);
+        }
+
+        try {
+            hookHyperOS(classLoader);
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("hook HyperOS failed", t);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             try {
-                Class<?> windowsState = XposedHelpers.findClass("com.android.server.wm.WindowState", loadPackageParam.classLoader);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    XposedHelpers.findAndHookMethod(
-                            windowsState,
-                            "isSecureLocked",
-                            XC_MethodReplacement.returnConstant(false));
-                } else {
-                    XposedHelpers.findAndHookMethod(
-                            "com.android.server.wm.WindowManagerService",
-                            loadPackageParam.classLoader,
-                            "isSecureLocked",
-                            windowsState,
-                            XC_MethodReplacement.returnConstant(false));
-                }
+                hookActivityTaskManagerService(classLoader);
             } catch (Throwable t) {
-                XposedBridge.log(t);
+                log("hook ActivityTaskManagerService failed", t);
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                try {
-                    XposedHelpers.findAndHookMethod(
-                            "com.android.server.wm.ActivityTaskManagerService",
-                            loadPackageParam.classLoader,
-                            "registerScreenCaptureObserver",
-                            "android.os.IBinder",
-                            "android.app.IScreenCaptureObserver",
-                            XC_MethodReplacement.DO_NOTHING);
-                } catch (Throwable t) {
-                    XposedBridge.log(t);
-                }
-            }
-            try {
-                deoptimizeMethod(XposedHelpers.findClass("com.android.server.wm.WindowStateAnimator", loadPackageParam.classLoader), "createSurfaceLocked");
-                var c = XposedHelpers.findClass("com.android.server.display.DisplayManagerService", loadPackageParam.classLoader);
-                deoptimizeMethod(c, "setUserPreferredModeForDisplayLocked");
-                deoptimizeMethod(c, "setUserPreferredDisplayModeInternal");
-                c = XposedHelpers.findClass("com.android.server.wm.InsetsPolicy$InsetsPolicyAnimationControlListener", loadPackageParam.classLoader);
-                for (var m : c.getDeclaredConstructors()) {
-                    deoptimizeMethod.invoke(null, m);
-                }
-                c = XposedHelpers.findClass("com.android.server.wm.InsetsPolicy", loadPackageParam.classLoader);
-                deoptimizeMethod(c, "startAnimation");
-                deoptimizeMethod(c, "controlAnimationUnchecked");
-                for (int i = 0; i < 20; i++) {
-                    c = XposedHelpers.findClassIfExists("com.android.server.wm.DisplayContent$$ExternalSyntheticLambda" + i, loadPackageParam.classLoader);
-                    if (c != null && BiPredicate.class.isAssignableFrom(c)) {
-                        deoptimizeMethod(c, "test");
-                    }
-                }
-                c = XposedHelpers.findClass("com.android.server.wm.WindowManagerService", loadPackageParam.classLoader);
-                deoptimizeMethod(c, "relayoutWindow");
-                for (int i = 0; i < 20; i++) {
-                    c = XposedHelpers.findClassIfExists("com.android.server.wm.RootWindowContainer$$ExternalSyntheticLambda" + i, loadPackageParam.classLoader);
-                    if (c != null && BiConsumer.class.isAssignableFrom(c)) {
-                        deoptimizeMethod(c, "accept");
-                    }
-                }
-            } catch (Throwable t) {
-                XposedBridge.log(t);
-            }
-            try {
-                Class<?> windowsManagerServiceImpl = XposedHelpers.findClassIfExists("com.android.server.wm.WindowManagerServiceImpl", loadPackageParam.classLoader);
-                if (windowsManagerServiceImpl != null) {
-                    XposedBridge.hookAllMethods(
-                            windowsManagerServiceImpl,
-                            "notAllowCaptureDisplay",
-                            XC_MethodReplacement.returnConstant(false));
-                }
-            } catch (Throwable t) {
-                XposedBridge.log(t);
-            }
-        } else if (loadPackageParam.packageName.equals("com.flyme.systemuiex")) {
-            try {
-                XposedHelpers.findAndHookMethod("android.view.SurfaceControl$ScreenshotHardwareBuffer", loadPackageParam.classLoader, "containsSecureLayers", XC_MethodReplacement.returnConstant(false));
-            } catch (Throwable t) {
-                XposedBridge.log(t);
-            }
-        } else if (loadPackageParam.packageName.equals("com.oplus.screenshot")) {
-            try {
-                Class<?> screenshotContext = XposedHelpers.findClassIfExists("com.oplus.screenshot.screenshot.core.ScreenshotContext", loadPackageParam.classLoader);
-                XposedBridge.hookAllMethods(screenshotContext, "setScreenshotReject", XC_MethodReplacement.DO_NOTHING);
-                XposedBridge.hookAllMethods(screenshotContext, "setLongshotReject", XC_MethodReplacement.DO_NOTHING);
-            } catch (Throwable t) {
-                XposedBridge.log(t);
-            }
-        } else if (loadPackageParam.isFirstApplication) {
-            XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    Activity activity = (Activity) param.thisObject;
-                    Toast.makeText(activity, "DFS: Incorrect module usage, remove this app from scope.", Toast.LENGTH_LONG).show();
-                    activity.finish();
-                }
-            });
         }
     }
 
+    @SuppressLint("PrivateApi")
+    @Override
+    public void onPackageLoaded(@NonNull PackageLoadedParam param) {
+        if (!param.isFirstPackage()) return;
+
+        var classLoader = param.getClassLoader();
+        switch (param.getPackageName()) {
+            case "com.flyme.systemuiex":
+                try {
+                    hookFlyme(classLoader);
+                } catch (Throwable t) {
+                    log("hook Flyme failed", t);
+                }
+                break;
+            case "com.oplus.screenshot":
+                try {
+                    hookOplus(classLoader);
+                } catch (Throwable t) {
+                    log("hook OPlus failed", t);
+                }
+                break;
+            default:
+                try {
+                    hookOnResume();
+                } catch (Throwable ignored) {
+                }
+        }
+    }
+
+    private void deoptimizeSystemServer(ClassLoader classLoader) throws ClassNotFoundException {
+        deoptimizeMethods(
+                classLoader.loadClass("com.android.server.wm.WindowStateAnimator"),
+                "createSurfaceLocked");
+
+        deoptimizeMethods(
+                classLoader.loadClass("com.android.server.display.DisplayManagerService"),
+                "setUserPreferredModeForDisplayLocked",
+                "setUserPreferredDisplayModeInternal");
+
+        Arrays.stream(classLoader
+                        .loadClass("com.android.server.wm.InsetsPolicy$InsetsPolicyAnimationControlListener")
+                        .getDeclaredConstructors())
+                .forEach(this::deoptimize);
+
+        deoptimizeMethods(
+                classLoader.loadClass("com.android.server.wm.InsetsPolicy"),
+                "startAnimation",
+                "controlAnimationUnchecked");
+
+        deoptimizeMethods(
+                classLoader.loadClass("com.android.server.wm.WindowManagerService"),
+                "relayoutWindow");
+
+        for (int i = 0; i < 20; i++) {
+            try {
+                var clazz = classLoader.loadClass("com.android.server.wm.RootWindowContainer$$ExternalSyntheticLambda" + i);
+                if (BiConsumer.class.isAssignableFrom(clazz)) {
+                    deoptimizeMethods(clazz, "accept");
+                }
+            } catch (ClassNotFoundException ignored) {
+            }
+            try {
+                var clazz = classLoader.loadClass("com.android.server.wm.DisplayContent$$ExternalSyntheticLambda" + i);
+                if (BiPredicate.class.isAssignableFrom(clazz)) {
+                    deoptimizeMethods(clazz, "test");
+                }
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+    }
+
+    private void deoptimizeMethods(Class<?> clazz, String... names) {
+        var list = Arrays.asList(names);
+        Arrays.stream(clazz.getDeclaredMethods())
+                .filter(method -> list.contains(method.getName()))
+                .forEach(this::deoptimize);
+    }
+
+    private void hookWindowState(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var windowStateClazz = classLoader.loadClass("com.android.server.wm.WindowState");
+        Method isSecureLockedMethod;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            isSecureLockedMethod = windowStateClazz.getDeclaredMethod("isSecureLocked");
+        } else {
+            var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
+            isSecureLockedMethod = windowManagerServiceClazz.getDeclaredMethod("isSecureLocked", windowStateClazz);
+        }
+        hook(isSecureLockedMethod, ReturnFalseHooker.class);
+    }
+
+    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private void hookActivityTaskManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.wm.ActivityTaskManagerService");
+        var iBinderClazz = classLoader.loadClass("android.os.IBinder");
+        var iScreenCaptureObserverClazz = classLoader.loadClass("android.app.IScreenCaptureObserver");
+        var method = activityTaskManagerServiceClazz.getDeclaredMethod("registerScreenCaptureObserver", iBinderClazz, iScreenCaptureObserverClazz);
+        hook(method, ReturnNullHooker.class);
+    }
+
+    private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
+        var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
+        for (var method : windowManagerServiceImplClazz.getDeclaredMethods()) {
+            if (method.getName().equals("notAllowCaptureDisplay")) {
+                hook(method, ReturnFalseHooker.class);
+            }
+        }
+    }
+
+    private void hookFlyme(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var screenshotHardwareBufferClazz = classLoader.loadClass("android.view.SurfaceControl$ScreenshotHardwareBuffer");
+        var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
+        hook(method, ReturnFalseHooker.class);
+    }
+
+    private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContext");
+        var method = screenshotContextClazz.getDeclaredMethod("setScreenshotReject");
+        hook(method, ReturnNullHooker.class);
+        method = screenshotContextClazz.getDeclaredMethod("setLongshotReject");
+        hook(method, ReturnNullHooker.class);
+    }
+
+    private void hookOnResume() throws NoSuchMethodException {
+        var method = Activity.class.getDeclaredMethod("onResume");
+        hook(method, ToastHooker.class);
+    }
+
+    @XposedHooker
+    private static class ReturnFalseHooker implements Hooker {
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) {
+            callback.returnAndSkip(false);
+        }
+    }
+
+    @XposedHooker
+    private static class ReturnNullHooker implements Hooker {
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) {
+            callback.returnAndSkip(null);
+        }
+    }
+
+    @XposedHooker
+    private static class ToastHooker implements Hooker {
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) {
+            var activity = (Activity) callback.getThisObject();
+            assert activity != null;
+            Toast.makeText(activity, "DFS: Incorrect module usage, remove this app from scope.", Toast.LENGTH_LONG).show();
+            activity.finish();
+        }
+    }
 }

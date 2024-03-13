@@ -91,21 +91,6 @@ public class DisableFlagSecure extends XposedModule {
                 "createSurfaceLocked");
 
         deoptimizeMethods(
-                classLoader.loadClass("com.android.server.display.DisplayManagerService"),
-                "setUserPreferredModeForDisplayLocked",
-                "setUserPreferredDisplayModeInternal");
-
-        Arrays.stream(classLoader
-                        .loadClass("com.android.server.wm.InsetsPolicy$InsetsPolicyAnimationControlListener")
-                        .getDeclaredConstructors())
-                .forEach(this::deoptimize);
-
-        deoptimizeMethods(
-                classLoader.loadClass("com.android.server.wm.InsetsPolicy"),
-                "startAnimation",
-                "controlAnimationUnchecked");
-
-        deoptimizeMethods(
                 classLoader.loadClass("com.android.server.wm.WindowManagerService"),
                 "relayoutWindow");
 

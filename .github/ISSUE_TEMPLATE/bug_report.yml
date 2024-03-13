@@ -39,7 +39,7 @@ body:
   - type: textarea
     attributes:
       label: Framework JAR
-      description: Please upload your /system/framework/framework.jar.
+      description: Please upload your /system/framework/framework.jar and services.jar.
       placeholder: Upload jar by clicking the bar on the bottom.
     validations:
       required: true

@@ -157,11 +157,7 @@ public class DisableFlagSecure extends XposedModule {
 
     private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
         var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
-        for (var method : windowManagerServiceImplClazz.getDeclaredMethods()) {
-            if (method.getName().equals("notAllowCaptureDisplay")) {
-                hook(method, ReturnFalseHooker.class);
-            }
-        }
+        hookMethods(windowManagerServiceImplClazz, ReturnFalseHooker.class, "notAllowCaptureDisplay");
     }
 
     private void hookFlyme(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
@@ -172,10 +168,14 @@ public class DisableFlagSecure extends XposedModule {
 
     private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContext");
-        var method = screenshotContextClazz.getDeclaredMethod("setScreenshotReject");
-        hook(method, ReturnNullHooker.class);
-        method = screenshotContextClazz.getDeclaredMethod("setLongshotReject");
-        hook(method, ReturnNullHooker.class);
+        hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
+    }
+
+    private void hookMethods(Class<?> clazz, Class<? extends Hooker> hooker, String... names) {
+        var list = Arrays.asList(names);
+        Arrays.stream(clazz.getDeclaredMethods())
+                .filter(method -> list.contains(method.getName()))
+                .forEach(method -> hook(method, hooker));
     }
 
     private void hookOnResume() throws NoSuchMethodException {

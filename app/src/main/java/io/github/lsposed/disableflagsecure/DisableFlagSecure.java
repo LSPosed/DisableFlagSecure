@@ -277,6 +277,12 @@ public class DisableFlagSecure extends XposedModule {
 
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                String stack = Log.getStackTraceString(new Throwable());
+                if (stack.contains("createVirtualDisplayLocked")) {
+                    return;
+                }
+            }
             callback.getArgs()[1] = true;
         }
     }
@@ -339,8 +345,8 @@ public class DisableFlagSecure extends XposedModule {
 
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
-            String stack = Log.getStackTraceString(new Throwable());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                String stack = Log.getStackTraceString(new Throwable());
                 // don't change surface flags, but passing other checks
                 if (stack.contains("setInitialSurfaceControlProperties")
                         || stack.contains("createSurfaceLocked")) {

@@ -52,6 +52,7 @@ jobs:
         # build dependencies
         cd libxposed/api && ./gradlew publishToMavenLocal && cd ../..
         # build DisableFlagSecure
+        chmod +x gradlew
         ./gradlew assembleRelease assembleDebug
 
     - name: Upload artifact

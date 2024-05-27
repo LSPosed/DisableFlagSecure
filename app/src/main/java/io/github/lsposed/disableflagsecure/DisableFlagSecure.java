@@ -76,6 +76,13 @@ public class DisableFlagSecure extends XposedModule {
                 } catch (Throwable t) {
                     log("hook OPlus failed", t);
                 }
+                try {
+                    hookOplusNew(classLoader);
+                } catch (Throwable t) {
+                    if (!(t instanceof ClassNotFoundException)) {
+                        log("hook OPlus failed", t);
+                    }
+                }
                 break;
             default:
                 try {
@@ -151,8 +158,13 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, ReturnFalseHooker.class);
     }
 
-    private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+    private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException {
         var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContext");
+        hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
+    }
+
+    private void hookOplusNew(ClassLoader classLoader) throws ClassNotFoundException {
+        var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContentContext");
         hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
     }
 

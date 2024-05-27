@@ -43,54 +43,60 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // ScreenCapture in WindowManagerService (U)
             try {
-                // Screenshot
                 hookScreenCapture(classLoader);
             } catch (Throwable t) {
                 log("hook ScreenCapture failed", t);
             }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+
+            // Screenshot detection (U)
             try {
-                // Blackout permission check
-                hookActivityManagerService(classLoader);
+                hookActivityTaskManagerService(classLoader);
             } catch (Throwable t) {
-                log("hook ActivityManagerService failed", t);
+                log("hook ActivityTaskManagerService failed", t);
             }
+
+            // Xiaomi HyperOS (U)
             try {
-                // WifiDisplay
+                hookHyperOS(classLoader);
+            } catch (ClassNotFoundException ignored) {
+            } catch (Throwable t) {
+                log("hook HyperOS failed", t);
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Blackout permission check (S~T)
+                try {
+                    hookActivityManagerService(classLoader);
+                } catch (Throwable t) {
+                    log("hook ActivityManagerService failed", t);
+                }
+            }
+
+            // WifiDisplay (S~U) / OverlayDisplay (S~U) / VirtualDisplay (U)
+            try {
                 hookDisplayControl(classLoader);
             } catch (Throwable t) {
                 log("hook DisplayControl failed", t);
             }
+
+            // VirtualDisplay with MediaProjection (S~U)
             try {
-                // MediaProjection
                 hookVirtualDisplayAdapter(classLoader);
             } catch (Throwable t) {
                 log("hook VirtualDisplayAdapter failed", t);
             }
         }
 
+        // secureLocked flag (S-)
         try {
             // Screenshot
             hookWindowState(classLoader);
         } catch (Throwable t) {
             log("hook WindowState failed", t);
-        }
-
-        try {
-            hookHyperOS(classLoader);
-        } catch (ClassNotFoundException ignored) {
-        } catch (Throwable t) {
-            log("hook HyperOS failed", t);
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                hookActivityTaskManagerService(classLoader);
-            } catch (Throwable t) {
-                log("hook ActivityTaskManagerService failed", t);
-            }
         }
     }
 
@@ -126,8 +132,8 @@ public class DisableFlagSecure extends XposedModule {
             case "com.miui.screenshot":
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // ScreenCapture in App (S~T)
                     try {
-                        // Screenshot
                         hookScreenCapture(classLoader);
                     } catch (Throwable t) {
                         log("hook ScreenCapture failed", t);

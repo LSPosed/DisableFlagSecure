@@ -24,6 +24,11 @@ import io.github.libxposed.api.annotations.XposedHooker;
 
 @SuppressLint({"PrivateApi", "BlockedPrivateApi"})
 public class DisableFlagSecure extends XposedModule {
+    private static final String SYSTEMUI = "com.android.systemui";
+    private static final String OPLUS_SCREENSHOT = "com.oplus.screenshot";
+    private static final String OPLUS_APPPLATFORM = "com.oplus.appplatform";
+    private static final String FLYME_SYSTEMUIEX = "com.flyme.systemuiex";
+    private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
 
     private static XposedModule module;
 
@@ -106,15 +111,9 @@ public class DisableFlagSecure extends XposedModule {
         if (!param.isFirstPackage()) return;
 
         var classLoader = param.getClassLoader();
-        switch (param.getPackageName()) {
-            case "com.flyme.systemuiex":
-                try {
-                    hookFlyme(classLoader);
-                } catch (Throwable t) {
-                    log("hook Flyme failed", t);
-                }
-                break;
-            case "com.oplus.screenshot":
+        var pn = param.getPackageName();
+        switch (pn) {
+            case OPLUS_SCREENSHOT:
                 try {
                     hookOplus(classLoader);
                 } catch (Throwable t) {
@@ -128,11 +127,23 @@ public class DisableFlagSecure extends XposedModule {
                     }
                 }
                 break;
-            case "com.android.systemui":
-            case "com.miui.screenshot":
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                        Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    // ScreenCapture in App (S~T)
+            case FLYME_SYSTEMUIEX:
+            case OPLUS_APPPLATFORM:
+                // Flyme SystemUI Ext 10.3.0
+                // OPlus AppPlatform 13.1.0 / 14.0.0
+                try {
+                    hookScreenshotHardwareBuffer(classLoader);
+                } catch (Throwable t) {
+                    if (!(t instanceof ClassNotFoundException)) {
+                        log("hook ScreenshotHardwareBuffer failed", t);
+                    }
+                }
+            case SYSTEMUI:
+            case MIUI_SCREENSHOT:
+                if (OPLUS_APPPLATFORM.equals(pn) ||
+                        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                                Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE)) {
+                    // ScreenCapture in App (S~T) (OPlus S-U)
                     try {
                         hookScreenCapture(classLoader);
                     } catch (Throwable t) {
@@ -251,8 +262,12 @@ public class DisableFlagSecure extends XposedModule {
         hookMethods(windowManagerServiceImplClazz, ReturnFalseHooker.class, "notAllowCaptureDisplay");
     }
 
-    private void hookFlyme(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var screenshotHardwareBufferClazz = classLoader.loadClass("android.view.SurfaceControl$ScreenshotHardwareBuffer");
+    @TargetApi(Build.VERSION_CODES.S)
+    private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var screenshotHardwareBufferClazz = classLoader.loadClass(
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
+                        "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
+                        "android.view.SurfaceControl$ScreenshotHardwareBuffer");
         var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
         hook(method, ReturnFalseHooker.class);
     }

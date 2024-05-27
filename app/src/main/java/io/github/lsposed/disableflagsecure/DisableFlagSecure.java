@@ -110,7 +110,7 @@ public class DisableFlagSecure extends XposedModule {
             } catch (ClassNotFoundException ignored) {
             }
             try {
-                var clazz = classLoader.loadClass("com.android.server.wm.DisplayContent$$ExternalSyntheticLambda" + i);
+                var clazz = classLoader.loadClass("com.android.server.wm.DisplayContent$" + i);
                 if (BiPredicate.class.isAssignableFrom(clazz)) {
                     deoptimizeMethods(clazz, "test");
                 }

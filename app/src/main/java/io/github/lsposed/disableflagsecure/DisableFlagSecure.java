@@ -245,6 +245,7 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, CheckPermissionHooker.class);
     }
 
+    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
         var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
         hookMethods(windowManagerServiceImplClazz, ReturnFalseHooker.class, "notAllowCaptureDisplay");

@@ -205,7 +205,6 @@ public class DisableFlagSecure extends XposedModule {
         hook(isSecureLockedMethod, SecureLockedHooker.class);
     }
 
-    private static Class<?> captureArgsClazz;
     private static Field captureSecureLayersField;
     private static Field allowProtectedField;
 
@@ -214,15 +213,15 @@ public class DisableFlagSecure extends XposedModule {
         var screenCaptureClazz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                 classLoader.loadClass("android.window.ScreenCapture") :
                 SurfaceControl.class;
-        captureArgsClazz = classLoader.loadClass(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
+        var captureArgsClazz = classLoader.loadClass(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                 "android.window.ScreenCapture$CaptureArgs" :
                 "android.view.SurfaceControl$CaptureArgs");
         captureSecureLayersField = captureArgsClazz.getDeclaredField("mCaptureSecureLayers");
         captureSecureLayersField.setAccessible(true);
         allowProtectedField = captureArgsClazz.getDeclaredField("mAllowProtected");
         allowProtectedField.setAccessible(true);
-        hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "captureDisplay");
-        hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "captureLayers");
+        hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureDisplay");
+        hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureLayers");
     }
 
     @TargetApi(Build.VERSION_CODES.S)
@@ -327,9 +326,6 @@ public class DisableFlagSecure extends XposedModule {
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
             var captureArgs = callback.getArgs()[0];
-            if (!captureArgsClazz.isInstance(captureArgs)) {
-                return;
-            }
             try {
                 captureSecureLayersField.set(captureArgs, true);
                 allowProtectedField.set(captureArgs, true);

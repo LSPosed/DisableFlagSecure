@@ -96,6 +96,24 @@ public class DisableFlagSecure extends XposedModule {
             }
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // OneUI
+            try {
+                hookScreenshotHardwareBuffer(classLoader);
+            } catch (Throwable t) {
+                if (!(t instanceof ClassNotFoundException)) {
+                    log("hook ScreenshotHardwareBuffer failed", t);
+                }
+            }
+            try {
+                hookOneUI(classLoader);
+            } catch (Throwable t) {
+                if (!(t instanceof ClassNotFoundException)) {
+                    log("hook OneUI failed", t);
+                }
+            }
+        }
+
         // secureLocked flag (S-)
         try {
             // Screenshot
@@ -281,6 +299,12 @@ public class DisableFlagSecure extends XposedModule {
         hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
     }
 
+    @TargetApi(Build.VERSION_CODES.S)
+    private void hookOneUI(ClassLoader classLoader) throws ClassNotFoundException {
+        var wmScreenshotControllerClazz = classLoader.loadClass("com.android.server.wm.WmScreenshotController");
+        hookMethods(wmScreenshotControllerClazz, ReturnTrueHooker.class, "canBeScreenshotTarget");
+    }
+
     private void hookMethods(Class<?> clazz, Class<? extends Hooker> hooker, String... names) {
         var list = Arrays.asList(names);
         Arrays.stream(clazz.getDeclaredMethods())
@@ -372,6 +396,14 @@ public class DisableFlagSecure extends XposedModule {
                 }
             }
             callback.returnAndSkip(false);
+        }
+    }
+
+    @XposedHooker
+    private static class ReturnTrueHooker implements Hooker {
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) {
+            callback.returnAndSkip(true);
         }
     }
 

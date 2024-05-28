@@ -1,7 +1,11 @@
 plugins {
     id 'com.android.application' version '8.4.1' apply false
+    id 'org.lsposed.lsplugin.jgit' version "1.1"
 }
 
 tasks.register('clean', Delete) {
     delete rootProject.buildDir
 }
+
+var repo = jgit.repo(true)
+ext.commitCount = repo.commitCount('refs/remotes/origin/main')

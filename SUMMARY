@@ -1,1 +1,1 @@
-Disable FLAG_SECURE on all windows, enabling screenshots in apps that normally wouldn't allow it, and disabling screenshot detection on Android 14+.
+Enabling screenshots in apps that normally wouldn't allow it, and disabling screenshot detection on Android 14+.

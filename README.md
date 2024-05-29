@@ -1,5 +1,5 @@
-# Disable FLAG_SECURE
-Disable `FLAG_SECURE` on all windows, enabling screenshots in apps that normally wouldn\'t allow it, and disabling screenshot detection on Android 14+.
+# Enable Screenshot (formerly known as Disable FLAG_SECURE)
+Enabling screenshots in apps that normally wouldn\'t allow it, and disabling screenshot detection on Android 14+.
 
 ## Usage
 1. Enable the module

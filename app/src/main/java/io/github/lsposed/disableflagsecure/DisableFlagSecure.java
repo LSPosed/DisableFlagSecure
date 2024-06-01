@@ -48,13 +48,6 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // ScreenCapture in WindowManagerService (U)
-            try {
-                hookScreenCapture(classLoader);
-            } catch (Throwable t) {
-                log("hook ScreenCapture failed", t);
-            }
-
             // Screenshot detection (U)
             try {
                 hookActivityTaskManagerService(classLoader);
@@ -72,6 +65,13 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // ScreenCapture in WindowManagerService (S~U)
+            try {
+                hookScreenCapture(classLoader);
+            } catch (Throwable t) {
+                log("hook ScreenCapture failed", t);
+            }
+
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 // Blackout permission check (S~T)
                 try {

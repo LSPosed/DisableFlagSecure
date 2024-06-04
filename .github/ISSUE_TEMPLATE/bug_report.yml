@@ -39,7 +39,7 @@ body:
   - type: textarea
     attributes:
       label: Framework, Services, and Screenshot App
-      description: Please upload your /system/framework/framework.jar, services.jar, and the screenshot app of your ROM(on AOSP, it's System UI), compressed in a zip file. If the file size is too large to fit GitHub's limit, please upload it to catbox.moe and provide the link.
+      description: Please upload your /system/framework/framework.jar, services.jar, and the screenshot app of your ROM(on AOSP, it's System UI), compressed in a zip file. If the file size is too large to fit GitHub's limit, please upload it to https://catbox.moe and provide the link.
       placeholder: Upload by clicking the bar on the bottom.
     validations:
       required: true

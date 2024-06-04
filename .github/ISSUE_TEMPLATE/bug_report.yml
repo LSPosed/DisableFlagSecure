@@ -9,7 +9,7 @@ body:
   - type: input
     attributes:
       label: LSPosed version
-      description:  Don't use 'latest'. Specify actual version with 4 digits.
+      description:  Only official LSPosed is supported. Don't use 'latest'. Specify actual version with 4 digits.
     validations:
       required: true
   - type: input
@@ -38,8 +38,8 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Framework JAR
-      description: Please upload your /system/framework/framework.jar and services.jar.
-      placeholder: Upload jar by clicking the bar on the bottom.
+      label: Framework, Services, and Screenshot App
+      description: Please upload your /system/framework/framework.jar, services.jar, and the screenshot app of your ROM(on AOSP, it's System UI), compressed in a zip file. If the file size is too large to fit GitHub's limit, please upload it to catbox.moe and provide the link.
+      placeholder: Upload by clicking the bar on the bottom.
     validations:
       required: true

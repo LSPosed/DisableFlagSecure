@@ -31,6 +31,13 @@ body:
           required: true
   - type: textarea
     attributes:
+      label: Behavior
+      description: Please describe the behavior when trying to screenshot.
+      placeholder: The screenshot is black. / Cannot screenshot with error notification or toast.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
       label: Logs
       description: Please provide the log zip saved from manager.
       placeholder: Upload logs zip by clicking the bar on the bottom.

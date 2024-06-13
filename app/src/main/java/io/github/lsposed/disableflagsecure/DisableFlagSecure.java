@@ -3,11 +3,11 @@ package io.github.lsposed.disableflagsecure;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.util.Log;
 import android.view.SurfaceControl;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
@@ -428,9 +428,12 @@ public class DisableFlagSecure extends XposedModule {
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
             var activity = (Activity) callback.getThisObject();
-            assert activity != null;
-            Toast.makeText(activity, "DFS: Incorrect module usage, remove this app from scope.", Toast.LENGTH_LONG).show();
-            activity.finish();
+            new AlertDialog.Builder(activity)
+                    .setTitle("Enable Screenshot")
+                    .setMessage("Incorrect module usage, remove this app from scope.")
+                    .setCancelable(false)
+                    .setPositiveButton("OK", (dialog, which) -> System.exit(0))
+                    .show();
         }
     }
 }

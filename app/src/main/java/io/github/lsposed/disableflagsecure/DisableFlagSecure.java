@@ -3,11 +3,11 @@ package io.github.lsposed.disableflagsecure;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.util.Log;
 import android.view.SurfaceControl;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
@@ -224,7 +224,6 @@ public class DisableFlagSecure extends XposedModule {
     }
 
     private static Field captureSecureLayersField;
-    private static Field allowProtectedField;
 
     @TargetApi(Build.VERSION_CODES.S)
     private void hookScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
@@ -236,8 +235,6 @@ public class DisableFlagSecure extends XposedModule {
                 "android.view.SurfaceControl$CaptureArgs");
         captureSecureLayersField = captureArgsClazz.getDeclaredField("mCaptureSecureLayers");
         captureSecureLayersField.setAccessible(true);
-        allowProtectedField = captureArgsClazz.getDeclaredField("mAllowProtected");
-        allowProtectedField.setAccessible(true);
         hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureDisplay");
         hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureLayers");
     }
@@ -352,7 +349,6 @@ public class DisableFlagSecure extends XposedModule {
             var captureArgs = callback.getArgs()[0];
             try {
                 captureSecureLayersField.set(captureArgs, true);
-                allowProtectedField.set(captureArgs, true);
             } catch (IllegalAccessException t) {
                 module.log("ScreenCaptureHooker failed", t);
             }
@@ -428,9 +424,12 @@ public class DisableFlagSecure extends XposedModule {
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
             var activity = (Activity) callback.getThisObject();
-            assert activity != null;
-            Toast.makeText(activity, "DFS: Incorrect module usage, remove this app from scope.", Toast.LENGTH_LONG).show();
-            activity.finish();
+            new AlertDialog.Builder(activity)
+                    .setTitle("Enable Screenshot")
+                    .setMessage("Incorrect module usage, remove this app from scope.")
+                    .setCancelable(false)
+                    .setPositiveButton("OK", (dialog, which) -> System.exit(0))
+                    .show();
         }
     }
 }

@@ -25,7 +25,6 @@ import io.github.libxposed.api.annotations.XposedHooker;
 @SuppressLint({"PrivateApi", "BlockedPrivateApi"})
 public class DisableFlagSecure extends XposedModule {
     private static final String SYSTEMUI = "com.android.systemui";
-    private static final String OPLUS_SCREENSHOT = "com.oplus.screenshot";
     private static final String OPLUS_APPPLATFORM = "com.oplus.appplatform";
     private static final String FLYME_SYSTEMUIEX = "com.flyme.systemuiex";
     private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
@@ -121,6 +120,14 @@ public class DisableFlagSecure extends XposedModule {
         } catch (Throwable t) {
             log("hook WindowState failed", t);
         }
+
+        // oplus dumpsys
+        // dumpsys window screenshot systemQuickTileScreenshotOut display_id=0
+        try {
+            hookOplus(classLoader);
+        } catch (Throwable ignored) {
+
+        }
     }
 
     @SuppressLint("PrivateApi")
@@ -131,20 +138,6 @@ public class DisableFlagSecure extends XposedModule {
         var classLoader = param.getClassLoader();
         var pn = param.getPackageName();
         switch (pn) {
-            case OPLUS_SCREENSHOT:
-                try {
-                    hookOplus(classLoader);
-                } catch (Throwable t) {
-                    log("hook OPlus failed", t);
-                }
-                try {
-                    hookOplusNew(classLoader);
-                } catch (Throwable t) {
-                    if (!(t instanceof ClassNotFoundException)) {
-                        log("hook OPlus failed", t);
-                    }
-                }
-                break;
             case FLYME_SYSTEMUIEX:
             case OPLUS_APPPLATFORM:
                 // Flyme SystemUI Ext 10.3.0
@@ -287,13 +280,9 @@ public class DisableFlagSecure extends XposedModule {
     }
 
     private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException {
-        var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContext");
-        hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
-    }
-
-    private void hookOplusNew(ClassLoader classLoader) throws ClassNotFoundException {
-        var screenshotContextClazz = classLoader.loadClass("com.oplus.screenshot.screenshot.core.ScreenshotContentContext");
-        hookMethods(screenshotContextClazz, ReturnNullHooker.class, "setScreenshotReject", "setLongshotReject");
+        // caller: com.android.server.wm.OplusLongshotWindowDump#dumpWindows
+        var longshotMainClazz = classLoader.loadClass("com.android.server.wm.OplusLongshotMainWindow");
+        hookMethods(longshotMainClazz, ReturnFalseHooker.class, "hasSecure");
     }
 
     @TargetApi(Build.VERSION_CODES.S)

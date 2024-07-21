@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="xposed_description">在通常不允许截图的应用中启用屏幕截图并禁用截图检测。</string>
+</resources>

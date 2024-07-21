@@ -1,9 +1,0 @@
-name: Do Not Report Issues Here
-description: Report there ⬇
-body:
-  - type: input
-    attributes:
-      label: Do Not Report Issues Here
-      description: https://github.com/LSPosed/DisableFlagSecure
-    validations:
-      required: true

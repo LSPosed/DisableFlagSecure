@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "DisableFlagSecure"
 include ':app'
+include ':libxposed-compat'

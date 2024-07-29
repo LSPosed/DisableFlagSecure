@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: libxposed/api
-        ref: a42f85d06eac3373d266a534ab3b31a584b30774
+        ref: 64e29bd657ef4d2540b34402f5a988778f29e676
         path: libxposed/api
         fetch-depth: 0
 
@@ -50,6 +50,7 @@ jobs:
         echo 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8 -XX:+UseParallelGC' >> ~/.gradle/gradle.properties
         echo 'android.native.buildOutput=verbose' >> ~/.gradle/gradle.properties
         # build dependencies
+        sed -i 's/VERSION_21/VERSION_17/g' libxposed/api/checks/build.gradle.kts
         cd libxposed/api && ./gradlew publishToMavenLocal && cd ../..
         # build DisableFlagSecure
         chmod +x gradlew

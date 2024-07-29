@@ -61,6 +61,6 @@ android {
 }
 
 dependencies {
-    compileOnly 'androidx.annotation:annotation:1.8.0'
+    compileOnly 'androidx.annotation:annotation:1.8.1'
     compileOnly 'io.github.libxposed:api:100'
 }

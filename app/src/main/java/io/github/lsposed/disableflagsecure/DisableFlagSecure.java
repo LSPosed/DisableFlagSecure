@@ -47,7 +47,7 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Screenshot detection (U)
+            // Screenshot detection (U~V)
             try {
                 hookActivityTaskManagerService(classLoader);
             } catch (Throwable t) {
@@ -64,7 +64,7 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // ScreenCapture in WindowManagerService (S~U)
+            // ScreenCapture in WindowManagerService (S~V)
             try {
                 hookScreenCapture(classLoader);
             } catch (Throwable t) {
@@ -80,14 +80,14 @@ public class DisableFlagSecure extends XposedModule {
                 }
             }
 
-            // WifiDisplay (S~U) / OverlayDisplay (S~U) / VirtualDisplay (U)
+            // WifiDisplay (S~V) / OverlayDisplay (S~V) / VirtualDisplay (U~V)
             try {
                 hookDisplayControl(classLoader);
             } catch (Throwable t) {
                 log("hook DisplayControl failed", t);
             }
 
-            // VirtualDisplay with MediaProjection (S~U)
+            // VirtualDisplay with MediaProjection (S~V4)
             try {
                 hookVirtualDisplayAdapter(classLoader);
             } catch (Throwable t) {
@@ -237,7 +237,10 @@ public class DisableFlagSecure extends XposedModule {
         var displayControlClazz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                 classLoader.loadClass("com.android.server.display.DisplayControl") :
                 SurfaceControl.class;
-        var method = displayControlClazz.getDeclaredMethod("createDisplay", String.class, boolean.class);
+        var method = displayControlClazz.getDeclaredMethod(
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ?
+                        "createVirtualDisplay" :
+                        "createDisplay", String.class, boolean.class);
         hook(method, CreateDisplayHooker.class);
     }
 

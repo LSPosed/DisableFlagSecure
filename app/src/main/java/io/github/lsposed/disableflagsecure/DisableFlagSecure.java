@@ -46,6 +46,15 @@ public class DisableFlagSecure extends XposedModule {
             log("deoptimize system server failed", t);
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            // Screen record detection (V)
+            try {
+                hookWindowManagerService(classLoader);
+            } catch (Throwable t) {
+                log("hook WindowManagerService failed", t);
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Screenshot detection (U~V)
             try {
@@ -257,6 +266,14 @@ public class DisableFlagSecure extends XposedModule {
         var iScreenCaptureObserverClazz = classLoader.loadClass("android.app.IScreenCaptureObserver");
         var method = activityTaskManagerServiceClazz.getDeclaredMethod("registerScreenCaptureObserver", iBinderClazz, iScreenCaptureObserverClazz);
         hook(method, ReturnNullHooker.class);
+    }
+
+    @TargetApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private void hookWindowManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
+        var iScreenRecordingCallbackClazz = classLoader.loadClass("android.window.IScreenRecordingCallback");
+        var method = windowManagerServiceClazz.getDeclaredMethod("registerScreenRecordingCallback", iScreenRecordingCallbackClazz);
+        hook(method, ReturnFalseHooker.class);
     }
 
     @TargetApi(Build.VERSION_CODES.S)

@@ -1,0 +1,3 @@
+<resources>
+    <string name="xposed_description">Enabling screenshots in apps that normally wouldn\'t allow it and disabling screenshot &amp; screen record detection.</string>
+</resources>

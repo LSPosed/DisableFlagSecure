@@ -96,7 +96,7 @@ public class DisableFlagSecure extends XposedModule {
                 log("hook DisplayControl failed", t);
             }
 
-            // VirtualDisplay with MediaProjection (S~V4)
+            // VirtualDisplay with MediaProjection (S~V)
             try {
                 hookVirtualDisplayAdapter(classLoader);
             } catch (Throwable t) {

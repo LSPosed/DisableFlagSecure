@@ -26,6 +26,7 @@ import io.github.libxposed.api.annotations.XposedHooker;
 public class DisableFlagSecure extends XposedModule {
     private static final String SYSTEMUI = "com.android.systemui";
     private static final String OPLUS_APPPLATFORM = "com.oplus.appplatform";
+    private static final String OPLUS_SCREENSHOT = "com.oplus.screenshot";
     private static final String FLYME_SYSTEMUIEX = "com.flyme.systemuiex";
     private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
 
@@ -147,6 +148,17 @@ public class DisableFlagSecure extends XposedModule {
         var classLoader = param.getClassLoader();
         var pn = param.getPackageName();
         switch (pn) {
+            case OPLUS_SCREENSHOT:
+                // Oplus Screenshot 15.0.0
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    try {
+                        hookOplusScreenCapture(classLoader);
+                    } catch (Throwable t) {
+                        if (!(t instanceof ClassNotFoundException)) {
+                            log("hook OplusScreenCapture failed", t);
+                        }
+                    }
+                }
             case FLYME_SYSTEMUIEX:
             case OPLUS_APPPLATFORM:
                 // Flyme SystemUI Ext 10.3.0
@@ -160,10 +172,10 @@ public class DisableFlagSecure extends XposedModule {
                 }
             case SYSTEMUI:
             case MIUI_SCREENSHOT:
-                if (OPLUS_APPPLATFORM.equals(pn) ||
+                if (OPLUS_APPPLATFORM.equals(pn) || OPLUS_SCREENSHOT.equals(pn) ||
                         (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                                 Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE)) {
-                    // ScreenCapture in App (S~T) (OPlus S-U)
+                    // ScreenCapture in App (S~T) (OPlus S-V)
                     try {
                         hookScreenCapture(classLoader);
                     } catch (Throwable t) {
@@ -299,6 +311,13 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, ReturnFalseHooker.class);
     }
 
+    @TargetApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private void hookOplusScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var oplusScreenCaptureClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$CaptureArgs$Builder");
+        var method = oplusScreenCaptureClazz.getDeclaredMethod("setUid", long.class);
+        hook(method, OplusScreenCaptureHooker.class);
+    }
+
     private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException {
         // caller: com.android.server.wm.OplusLongshotWindowDump#dumpWindows
         var longshotMainClazz = classLoader.loadClass("com.android.server.wm.OplusLongshotMainWindow");
@@ -347,6 +366,15 @@ public class DisableFlagSecure extends XposedModule {
             if ("android.permission.CAPTURE_BLACKOUT_CONTENT".equals(permission)) {
                 callback.getArgs()[0] = "android.permission.READ_FRAME_BUFFER";
             }
+        }
+    }
+
+    @XposedHooker
+    private static class OplusScreenCaptureHooker implements Hooker {
+
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) {
+            callback.getArgs()[0] = -1;
         }
     }
 

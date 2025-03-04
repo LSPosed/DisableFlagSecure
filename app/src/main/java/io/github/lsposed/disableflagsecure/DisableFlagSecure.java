@@ -384,7 +384,7 @@ public class DisableFlagSecure extends XposedModule {
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
             var caller = (int) callback.getArgs()[2];
-            if (caller != 1000 && callback.getArgs()[1] == null) {
+            if (caller >= 10000 && callback.getArgs()[1] == null) {
                 // not os and not media projection
                 return;
             }

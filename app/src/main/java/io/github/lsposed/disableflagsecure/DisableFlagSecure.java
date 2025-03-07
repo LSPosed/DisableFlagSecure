@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
-import android.util.Log;
 import android.view.SurfaceControl;
 
 import androidx.annotation.NonNull;
@@ -334,9 +333,12 @@ public class DisableFlagSecure extends XposedModule {
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                String stack = Log.getStackTraceString(new Throwable());
-                if (stack.contains("createVirtualDisplayLocked")) {
-                    return;
+                var stackTrace = new Throwable().getStackTrace();
+                for (int i = 4; i < stackTrace.length && i < 8; i++) {
+                    var name = stackTrace[i].getMethodName();
+                    if (name.equals("createVirtualDisplayLocked")) {
+                        return;
+                    }
                 }
             }
             callback.getArgs()[1] = true;
@@ -406,11 +408,23 @@ public class DisableFlagSecure extends XposedModule {
 
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
-            String stack = Log.getStackTraceString(new Throwable());
-            // don't change surface flags, but passing other checks
-            if (stack.contains("setInitialSurfaceControlProperties")
-                    || stack.contains("createSurfaceLocked")) {
-                return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                var walker = StackWalker.getInstance();
+                var match = walker.walk(frames -> frames
+                        .map(StackWalker.StackFrame::getMethodName)
+                        .limit(6)
+                        .skip(2)
+                        .anyMatch(s -> s.equals("setInitialSurfaceControlProperties") || s.equals("createSurfaceLocked")));
+                if (match) return;
+            } else {
+                var stackTrace = new Throwable().getStackTrace();
+                for (int i = 4; i < stackTrace.length && i < 8; i++) {
+                    var name = stackTrace[i].getMethodName();
+                    if (name.equals("setInitialSurfaceControlProperties") ||
+                            name.equals("createSurfaceLocked")) {
+                        return;
+                    }
+                }
             }
             callback.returnAndSkip(false);
         }

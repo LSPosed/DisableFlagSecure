@@ -1,7 +1,6 @@
 package io.github.lsposed.disableflagsecure;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.hardware.display.DisplayManager;
@@ -10,6 +9,7 @@ import android.util.Log;
 import android.view.SurfaceControl;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -260,7 +260,7 @@ public class DisableFlagSecure extends XposedModule {
         hookMethods(displayControlClazz, CreateVirtualDisplayLockedHooker.class, "createVirtualDisplayLocked");
     }
 
-    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private void hookActivityTaskManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.wm.ActivityTaskManagerService");
         var iBinderClazz = classLoader.loadClass("android.os.IBinder");
@@ -269,7 +269,7 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, ReturnNullHooker.class);
     }
 
-    @TargetApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private void hookWindowManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
         var iScreenRecordingCallbackClazz = classLoader.loadClass("android.window.IScreenRecordingCallback");
@@ -283,7 +283,7 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, CheckPermissionHooker.class);
     }
 
-    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
         var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
         hookMethods(windowManagerServiceImplClazz, ReturnFalseHooker.class, "notAllowCaptureDisplay");
@@ -298,7 +298,7 @@ public class DisableFlagSecure extends XposedModule {
         hook(method, ReturnFalseHooker.class);
     }
 
-    @TargetApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private void hookOplusScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var oplusScreenCaptureClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$CaptureArgs$Builder");
         var method = oplusScreenCaptureClazz.getDeclaredMethod("setUid", long.class);

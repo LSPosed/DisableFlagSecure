@@ -30,7 +30,7 @@ body:
         - label: I am using latest debug CI version
           required: true
   - type: checkboxes
-    id: latest
+    id: official
     attributes:
       label: LSPosed requirement
       options:

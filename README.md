@@ -4,7 +4,7 @@ Enabling screenshots in apps that normally wouldn\'t allow it, and disabling scr
 **Unofficial LSPosed versions are not supported.**
 
 ## Supported OSes
-- Android 12-16 Beta 2 (Custom ROMs are **not** supported)
+- Android 12-16 Beta 3 (Custom ROMs are **not** supported)
 - Xiaomi Hyper OS
 - OPlus OS (Color OS/Realme UI/Oxygen OS)
 - Samsung One UI

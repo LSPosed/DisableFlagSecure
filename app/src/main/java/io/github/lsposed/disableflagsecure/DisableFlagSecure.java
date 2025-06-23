@@ -63,7 +63,7 @@ public class DisableFlagSecure extends XposedModule {
             }
 
             // Xiaomi HyperOS (U~Baklava)
-            // OS2.0.250220.1.WOCCNXM.PRE
+            // OS2.0.300.1.WOCCNXM
             try {
                 hookHyperOS(classLoader);
             } catch (ClassNotFoundException ignored) {

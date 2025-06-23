@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Enable Screenshot</string>
+    <string name="app_name">Enable Screenshot: Swan Song</string>
     <string name="xposed_description">Enabling screenshots in apps that normally wouldn\'t allow it.</string>
 </resources>

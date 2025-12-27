@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
     - name: Checkout libxposed/api
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: libxposed/api
         ref: 64e29bd657ef4d2540b34402f5a988778f29e676

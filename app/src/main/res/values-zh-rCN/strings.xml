@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">启用截图：天鹅挽歌</string>
+    <string name="app_name">启用截图</string>
     <string name="xposed_description">在通常不允许截图的应用中启用屏幕截图。</string>
 </resources>

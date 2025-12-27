@@ -1,9 +1,6 @@
 # Enable Screenshot (formerly known as Disable FLAG_SECURE)
 Enabling screenshots in apps that normally wouldn\'t allow it, and disabling screenshot(Android 14+) & screen record(Android 15+) detection.
 
-> [!IMPORTANT]
-> This project is now final. No further updates or support may be provided.
-
 **Unofficial LSPosed versions are not supported.**
 
 ## Supported OSes

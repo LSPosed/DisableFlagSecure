@@ -231,13 +231,20 @@ public class DisableFlagSecure extends XposedModule {
     private static Field captureSecureLayersField;
 
     private void hookScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
-        var screenCaptureClazz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
-                classLoader.loadClass("android.window.ScreenCapture") :
-                SurfaceControl.class;
-        var captureArgsClazz = classLoader.loadClass(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
-                "android.window.ScreenCapture$CaptureArgs" :
-                "android.view.SurfaceControl$CaptureArgs");
-        captureSecureLayersField = captureArgsClazz.getDeclaredField("mCaptureSecureLayers");
+        Class<?> screenCaptureClazz;
+        Class<?> captureArgsClazz;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+            screenCaptureClazz = classLoader.loadClass("android.window.ScreenCaptureInternal");
+            captureArgsClazz = classLoader.loadClass("android.window.ScreenCaptureInternal$CaptureArgs");
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            screenCaptureClazz = classLoader.loadClass("android.window.ScreenCapture");
+            captureArgsClazz = classLoader.loadClass("android.window.ScreenCapture$CaptureArgs");
+        } else {
+            screenCaptureClazz = SurfaceControl.class;
+            captureArgsClazz = classLoader.loadClass("android.view.SurfaceControl$CaptureArgs");
+        }
+        captureSecureLayersField = captureArgsClazz.getDeclaredField(Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+                Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1 ? "mSecureContentPolicy" : "mCaptureSecureLayers");
         captureSecureLayersField.setAccessible(true);
         hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureDisplay");
         hookMethods(screenCaptureClazz, ScreenCaptureHooker.class, "nativeCaptureLayers");
@@ -373,7 +380,12 @@ public class DisableFlagSecure extends XposedModule {
         public static void before(@NonNull BeforeHookCallback callback) {
             var captureArgs = callback.getArgs()[0];
             try {
-                captureSecureLayersField.set(captureArgs, true);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+                        Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                    captureSecureLayersField.set(captureArgs, 1);
+                } else {
+                    captureSecureLayersField.set(captureArgs, true);
+                }
             } catch (IllegalAccessException t) {
                 module.log("ScreenCaptureHooker failed", t);
             }

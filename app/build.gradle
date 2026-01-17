@@ -35,6 +35,10 @@ android {
     }
 
     buildTypes {
+        configureEach {
+            vcsInfo.include false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
         debug {
             if (localProperties.getProperty("storeFile") != null) {
                 signingConfig signingConfigs.config
@@ -48,7 +52,6 @@ android {
             }
             vcsInfo.include false
             minifyEnabled true
-            proguardFiles 'proguard-rules.pro'
         }
     }
 

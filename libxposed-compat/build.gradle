@@ -12,11 +12,16 @@ android {
 
     defaultConfig {
         minSdk 24
-        targetSdk 36
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
+    }
+    lint {
+        targetSdk 36
+    }
+    testOptions {
+        targetSdk 36
     }
 }

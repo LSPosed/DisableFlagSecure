@@ -37,6 +37,12 @@ public class DisableFlagSecure extends XposedModule {
 
     @Override
     public void onSystemServerLoaded(@NonNull SystemServerLoadedParam param) {
+        try {
+            System.loadLibrary("disableflagsecure");
+        } catch (Throwable t) {
+            log("load library failed", t);
+        }
+
         var classLoader = param.getClassLoader();
 
         try {
@@ -169,6 +175,11 @@ public class DisableFlagSecure extends XposedModule {
                 }
             case SYSTEMUI:
             case MIUI_SCREENSHOT:
+                try {
+                    System.loadLibrary("disableflagsecure");
+                } catch (Throwable t) {
+                    log("load library failed", t);
+                }
                 if (OPLUS_APPPLATFORM.equals(pn) || OPLUS_SCREENSHOT.equals(pn) ||
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     // ScreenCapture in App (S~T) (OPlus S~V)
@@ -178,6 +189,14 @@ public class DisableFlagSecure extends XposedModule {
                     } catch (Throwable t) {
                         log("hook ScreenCapture failed", t);
                     }
+                }
+                break;
+            case "android":
+                log("load package " + pn);
+                try {
+                    System.loadLibrary("disableflagsecure");
+                } catch (Throwable t) {
+                    log("load library failed", t);
                 }
                 break;
             default:

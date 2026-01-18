@@ -378,14 +378,6 @@ public class DisableFlagSecure extends XposedModule {
 
         @BeforeInvocation
         public static void before(@NonNull BeforeHookCallback callback) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                var uid = android.os.Process.myUid();
-                // cannot bypass hasCaptureBlackoutContentPermission() in SurfaceFlinger.cpp
-                // skipping this hook for S~T before implement native hook
-                if (uid != 1000 && uid != 1003) {
-                    return;
-                }
-            }
             var captureArgs = callback.getArgs()[0];
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&

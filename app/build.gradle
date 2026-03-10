@@ -65,11 +65,11 @@ android {
     }
 
     dependenciesInfo.includeInApk false
+    enableKotlin = false
     namespace 'io.github.lsposed.disableflagsecure'
 }
 
 dependencies {
     compileOnly 'androidx.annotation:annotation:1.9.1'
-    compileOnly 'io.github.libxposed:api:100'
-    compileOnly project(":libxposed-compat")
+    compileOnly 'io.github.libxposed:api:101.0.0'
 }

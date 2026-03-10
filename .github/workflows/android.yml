@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: libxposed/api
-        ref: 64e29bd657ef4d2540b34402f5a988778f29e676
+        ref: rfc
         path: libxposed/api
         fetch-depth: 0
 

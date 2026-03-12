@@ -224,7 +224,27 @@ public class DisableFlagSecure extends XposedModule {
     private void hookWindowState(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var windowStateClazz = classLoader.loadClass("com.android.server.wm.WindowState");
         var isSecureLockedMethod = windowStateClazz.getDeclaredMethod("isSecureLocked");
-        hook(isSecureLockedMethod).intercept(new SecureLockedHooker());
+        hook(isSecureLockedMethod).intercept(chain -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                var walker = StackWalker.getInstance();
+                var match = walker.walk(frames -> frames
+                        .map(StackWalker.StackFrame::getMethodName)
+                        .limit(6)
+                        .skip(2)
+                        .anyMatch(s -> s.equals("setInitialSurfaceControlProperties") || s.equals("createSurfaceLocked")));
+                if (match) return chain.proceed();
+            } else {
+                var stackTrace = new Throwable().getStackTrace();
+                for (int i = 4; i < stackTrace.length && i < 8; i++) {
+                    var name = stackTrace[i].getMethodName();
+                    if (name.equals("setInitialSurfaceControlProperties") ||
+                            name.equals("createSurfaceLocked")) {
+                        return chain.proceed();
+                    }
+                }
+            }
+            return false;
+        });
     }
 
     private static Field captureSecureLayersField;
@@ -257,86 +277,7 @@ public class DisableFlagSecure extends XposedModule {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ?
                         "createVirtualDisplay" :
                         "createDisplay", String.class, boolean.class);
-        hook(method).intercept(new CreateDisplayHooker());
-    }
-
-    private void hookVirtualDisplayAdapter(ClassLoader classLoader) throws ClassNotFoundException {
-        var displayControlClazz = classLoader.loadClass("com.android.server.display.VirtualDisplayAdapter");
-        hookMethods(displayControlClazz, new CreateVirtualDisplayLockedHooker(), "createVirtualDisplayLocked");
-    }
-
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    private void hookActivityTaskManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.wm.ActivityTaskManagerService");
-        var iBinderClazz = classLoader.loadClass("android.os.IBinder");
-        var iScreenCaptureObserverClazz = classLoader.loadClass("android.app.IScreenCaptureObserver");
-        var method = activityTaskManagerServiceClazz.getDeclaredMethod("registerScreenCaptureObserver", iBinderClazz, iScreenCaptureObserverClazz);
-        hook(method).intercept(new ReturnNullHooker());
-    }
-
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    private void hookWindowManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
-        var iScreenRecordingCallbackClazz = classLoader.loadClass("android.window.IScreenRecordingCallback");
-        var method = windowManagerServiceClazz.getDeclaredMethod("registerScreenRecordingCallback", iScreenRecordingCallbackClazz);
-        hook(method).intercept(new ReturnFalseHooker());
-    }
-
-    private void hookActivityManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.am.ActivityManagerService");
-        var method = activityTaskManagerServiceClazz.getDeclaredMethod("checkPermission", String.class, int.class, int.class);
-        hook(method).intercept(new CheckPermissionHooker());
-    }
-
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
-        var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
-        hookMethods(windowManagerServiceImplClazz, new ReturnFalseHooker(), "notAllowCaptureDisplay");
-    }
-
-    private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var screenshotHardwareBufferClazz = classLoader.loadClass(
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
-                        "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
-                        "android.view.SurfaceControl$ScreenshotHardwareBuffer");
-        var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
-        hook(method).intercept(new ReturnFalseHooker());
-    }
-
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    private void hookOplusScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var oplusScreenCaptureClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$CaptureArgs$Builder");
-        var method = oplusScreenCaptureClazz.getDeclaredMethod("setUid", long.class);
-        hook(method).intercept(new OplusScreenCaptureHooker());
-    }
-
-    private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException {
-        // caller: com.android.server.wm.OplusLongshotWindowDump#dumpWindows
-        var longshotMainClazz = classLoader.loadClass("com.android.server.wm.OplusLongshotMainWindow");
-        hookMethods(longshotMainClazz, new ReturnFalseHooker(), "hasSecure");
-    }
-
-    private void hookOneUI(ClassLoader classLoader) throws ClassNotFoundException {
-        var wmScreenshotControllerClazz = classLoader.loadClass("com.android.server.wm.WmScreenshotController");
-        hookMethods(wmScreenshotControllerClazz, new ReturnTrueHooker(), "canBeScreenshotTarget");
-    }
-
-    private void hookMethods(Class<?> clazz, Hooker hooker, String... names) {
-        var list = Arrays.asList(names);
-        Arrays.stream(clazz.getDeclaredMethods())
-                .filter(method -> list.contains(method.getName()))
-                .forEach(method -> hook(method).intercept(hooker));
-    }
-
-    private void hookOnResume() throws NoSuchMethodException {
-        var method = Activity.class.getDeclaredMethod("onResume");
-        hook(method).intercept(new ToastHooker());
-    }
-
-    private static class CreateDisplayHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
+        hook(method).intercept(chain -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 var stackTrace = new Throwable().getStackTrace();
                 for (int i = 4; i < stackTrace.length && i < 8; i++) {
@@ -349,13 +290,52 @@ public class DisableFlagSecure extends XposedModule {
             var args = chain.getArgs().toArray();
             args[1] = true;
             return chain.proceed(args);
-        }
+        });
     }
 
-    private static class CheckPermissionHooker implements Hooker {
+    private void hookVirtualDisplayAdapter(ClassLoader classLoader) throws ClassNotFoundException {
+        var displayControlClazz = classLoader.loadClass("com.android.server.display.VirtualDisplayAdapter");
+        hookMethods(displayControlClazz, chain -> {
+            var caller = (int) chain.getArg(2);
+            if (caller >= 10000 && chain.getArg(1) == null) {
+                // not os and not media projection
+                return chain.proceed();
+            }
+            for (int i = 3; i < chain.getArgs().size(); i++) {
+                var arg = chain.getArg(i);
+                if (arg instanceof Integer flags) {
+                    flags |= DisplayManager.VIRTUAL_DISPLAY_FLAG_SECURE;
+                    var args = chain.getArgs().toArray();
+                    args[i] = flags;
+                    return chain.proceed(args);
+                }
+            }
+            module.log(Log.WARN, TAG, "flag not found in CreateVirtualDisplayLockedHooker");
+            return chain.proceed();
+        }, "createVirtualDisplayLocked");
+    }
 
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private void hookActivityTaskManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.wm.ActivityTaskManagerService");
+        var iBinderClazz = classLoader.loadClass("android.os.IBinder");
+        var iScreenCaptureObserverClazz = classLoader.loadClass("android.app.IScreenCaptureObserver");
+        var method = activityTaskManagerServiceClazz.getDeclaredMethod("registerScreenCaptureObserver", iBinderClazz, iScreenCaptureObserverClazz);
+        hook(method).intercept(chain -> null);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private void hookWindowManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
+        var iScreenRecordingCallbackClazz = classLoader.loadClass("android.window.IScreenRecordingCallback");
+        var method = windowManagerServiceClazz.getDeclaredMethod("registerScreenRecordingCallback", iScreenRecordingCallbackClazz);
+        hook(method).intercept(chain -> false);
+    }
+
+    private void hookActivityManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.am.ActivityManagerService");
+        var method = activityTaskManagerServiceClazz.getDeclaredMethod("checkPermission", String.class, int.class, int.class);
+        hook(method).intercept(chain -> {
             var permission = chain.getArg(0);
             if ("android.permission.CAPTURE_BLACKOUT_CONTENT".equals(permission)) {
                 var args = chain.getArgs().toArray();
@@ -363,17 +343,65 @@ public class DisableFlagSecure extends XposedModule {
                 return chain.proceed(args);
             }
             return chain.proceed();
-        }
+        });
     }
 
-    private static class OplusScreenCaptureHooker implements Hooker {
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private void hookHyperOS(ClassLoader classLoader) throws ClassNotFoundException {
+        var windowManagerServiceImplClazz = classLoader.loadClass("com.android.server.wm.WindowManagerServiceImpl");
+        hookMethods(windowManagerServiceImplClazz, chain -> false, "notAllowCaptureDisplay");
+    }
 
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
+    private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var screenshotHardwareBufferClazz = classLoader.loadClass(
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
+                        "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
+                        "android.view.SurfaceControl$ScreenshotHardwareBuffer");
+        var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
+        hook(method).intercept(chain -> false);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private void hookOplusScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var oplusScreenCaptureClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$CaptureArgs$Builder");
+        var method = oplusScreenCaptureClazz.getDeclaredMethod("setUid", long.class);
+        hook(method).intercept(chain -> {
             var args = chain.getArgs().toArray();
             args[0] = -1;
             return chain.proceed(args);
-        }
+        });
+    }
+
+    private void hookOplus(ClassLoader classLoader) throws ClassNotFoundException {
+        // caller: com.android.server.wm.OplusLongshotWindowDump#dumpWindows
+        var longshotMainClazz = classLoader.loadClass("com.android.server.wm.OplusLongshotMainWindow");
+        hookMethods(longshotMainClazz, chain -> false, "hasSecure");
+    }
+
+    private void hookOneUI(ClassLoader classLoader) throws ClassNotFoundException {
+        var wmScreenshotControllerClazz = classLoader.loadClass("com.android.server.wm.WmScreenshotController");
+        hookMethods(wmScreenshotControllerClazz, chain -> true, "canBeScreenshotTarget");
+    }
+
+    private void hookMethods(Class<?> clazz, Hooker hooker, String... names) {
+        var list = Arrays.asList(names);
+        Arrays.stream(clazz.getDeclaredMethods())
+                .filter(method -> list.contains(method.getName()))
+                .forEach(method -> hook(method).intercept(hooker));
+    }
+
+    private void hookOnResume() throws NoSuchMethodException {
+        var method = Activity.class.getDeclaredMethod("onResume");
+        hook(method).intercept(chain -> {
+            var activity = (Activity) chain.getThisObject();
+            new AlertDialog.Builder(activity)
+                    .setTitle("Enable Screenshot")
+                    .setMessage("Incorrect module usage, remove this app from scope.")
+                    .setCancelable(false)
+                    .setPositiveButton("OK", (dialog, which) -> System.exit(0))
+                    .show();
+            return chain.proceed();
+        });
     }
 
     private static class ScreenCaptureHooker implements Hooker {
@@ -391,94 +419,6 @@ public class DisableFlagSecure extends XposedModule {
             } catch (IllegalAccessException t) {
                 module.log(Log.ERROR, TAG, "ScreenCaptureHooker failed", t);
             }
-            return chain.proceed();
-        }
-    }
-
-    private static class CreateVirtualDisplayLockedHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
-            var caller = (int) chain.getArg(2);
-            if (caller >= 10000 && chain.getArg(1) == null) {
-                // not os and not media projection
-                return chain.proceed();
-            }
-            for (int i = 3; i < chain.getArgs().size(); i++) {
-                var arg = chain.getArg(i);
-                if (arg instanceof Integer flags) {
-                    flags |= DisplayManager.VIRTUAL_DISPLAY_FLAG_SECURE;
-                    var args = chain.getArgs().toArray();
-                    args[i] = flags;
-                    return chain.proceed(args);
-                }
-            }
-            module.log(Log.WARN, TAG, "flag not found in CreateVirtualDisplayLockedHooker");
-            return chain.proceed();
-        }
-    }
-
-    private static class SecureLockedHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                var walker = StackWalker.getInstance();
-                var match = walker.walk(frames -> frames
-                        .map(StackWalker.StackFrame::getMethodName)
-                        .limit(6)
-                        .skip(2)
-                        .anyMatch(s -> s.equals("setInitialSurfaceControlProperties") || s.equals("createSurfaceLocked")));
-                if (match) return chain.proceed();
-            } else {
-                var stackTrace = new Throwable().getStackTrace();
-                for (int i = 4; i < stackTrace.length && i < 8; i++) {
-                    var name = stackTrace[i].getMethodName();
-                    if (name.equals("setInitialSurfaceControlProperties") ||
-                            name.equals("createSurfaceLocked")) {
-                        return chain.proceed();
-                    }
-                }
-            }
-            return false;
-        }
-    }
-
-    private static class ReturnTrueHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) {
-            return true;
-        }
-    }
-
-    private static class ReturnFalseHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) {
-            return false;
-        }
-    }
-
-    private static class ReturnNullHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) {
-            return null;
-        }
-    }
-
-    private static class ToastHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
-            var activity = (Activity) chain.getThisObject();
-            new AlertDialog.Builder(activity)
-                    .setTitle("Enable Screenshot")
-                    .setMessage("Incorrect module usage, remove this app from scope.")
-                    .setCancelable(false)
-                    .setPositiveButton("OK", (dialog, which) -> System.exit(0))
-                    .show();
             return chain.proceed();
         }
     }

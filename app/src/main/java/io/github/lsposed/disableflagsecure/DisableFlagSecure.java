@@ -11,7 +11,6 @@ import android.view.SurfaceControl;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
@@ -229,13 +228,13 @@ public class DisableFlagSecure extends XposedModule {
                 var walker = StackWalker.getInstance();
                 var match = walker.walk(frames -> frames
                         .map(StackWalker.StackFrame::getMethodName)
-                        .limit(6)
-                        .skip(2)
+                        .limit(10)
+                        .skip(6)
                         .anyMatch(s -> s.equals("setInitialSurfaceControlProperties") || s.equals("createSurfaceLocked")));
                 if (match) return chain.proceed();
             } else {
                 var stackTrace = new Throwable().getStackTrace();
-                for (int i = 4; i < stackTrace.length && i < 8; i++) {
+                for (int i = 8; i < stackTrace.length && i < 12; i++) {
                     var name = stackTrace[i].getMethodName();
                     if (name.equals("setInitialSurfaceControlProperties") ||
                             name.equals("createSurfaceLocked")) {
@@ -246,8 +245,6 @@ public class DisableFlagSecure extends XposedModule {
             return false;
         });
     }
-
-    private static Field captureSecureLayersField;
 
     private void hookScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
         Class<?> screenCaptureClazz;
@@ -262,11 +259,25 @@ public class DisableFlagSecure extends XposedModule {
             screenCaptureClazz = SurfaceControl.class;
             captureArgsClazz = classLoader.loadClass("android.view.SurfaceControl$CaptureArgs");
         }
-        captureSecureLayersField = captureArgsClazz.getDeclaredField(Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+        var captureSecureLayersField = captureArgsClazz.getDeclaredField(Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
                 Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1 ? "mSecureContentPolicy" : "mCaptureSecureLayers");
         captureSecureLayersField.setAccessible(true);
-        hookMethods(screenCaptureClazz, new ScreenCaptureHooker(), "nativeCaptureDisplay");
-        hookMethods(screenCaptureClazz, new ScreenCaptureHooker(), "nativeCaptureLayers");
+        Hooker hooker = chain -> {
+            var captureArgs = chain.getArg(0);
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+                        Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                    captureSecureLayersField.set(captureArgs, 1);
+                } else {
+                    captureSecureLayersField.set(captureArgs, true);
+                }
+            } catch (IllegalAccessException t) {
+                module.log(Log.ERROR, TAG, "ScreenCaptureHooker failed", t);
+            }
+            return chain.proceed();
+        };
+        hookMethods(screenCaptureClazz, hooker, "nativeCaptureDisplay");
+        hookMethods(screenCaptureClazz, hooker, "nativeCaptureLayers");
     }
 
     private void hookDisplayControl(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
@@ -280,7 +291,7 @@ public class DisableFlagSecure extends XposedModule {
         hook(method).intercept(chain -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 var stackTrace = new Throwable().getStackTrace();
-                for (int i = 4; i < stackTrace.length && i < 8; i++) {
+                for (int i = 8; i < stackTrace.length && i < 12; i++) {
                     var name = stackTrace[i].getMethodName();
                     if (name.equals("createVirtualDisplayLocked")) {
                         return chain.proceed();
@@ -402,24 +413,5 @@ public class DisableFlagSecure extends XposedModule {
                     .show();
             return chain.proceed();
         });
-    }
-
-    private static class ScreenCaptureHooker implements Hooker {
-
-        @Override
-        public Object intercept(@NonNull Chain chain) throws Throwable {
-            var captureArgs = chain.getArg(0);
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
-                        Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
-                    captureSecureLayersField.set(captureArgs, 1);
-                } else {
-                    captureSecureLayersField.set(captureArgs, true);
-                }
-            } catch (IllegalAccessException t) {
-                module.log(Log.ERROR, TAG, "ScreenCaptureHooker failed", t);
-            }
-            return chain.proceed();
-        }
     }
 }

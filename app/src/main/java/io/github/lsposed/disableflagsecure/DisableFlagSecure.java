@@ -222,23 +222,28 @@ public class DisableFlagSecure extends XposedModule {
 
     private void hookWindowState(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var windowStateClazz = classLoader.loadClass("com.android.server.wm.WindowState");
+        var systemServerCl = windowStateClazz.getClassLoader();
         var isSecureLockedMethod = windowStateClazz.getDeclaredMethod("isSecureLocked");
         hook(isSecureLockedMethod).intercept(chain -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                var walker = StackWalker.getInstance();
+                var walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
                 var match = walker.walk(frames -> frames
-                        .map(StackWalker.StackFrame::getMethodName)
-                        .limit(10)
-                        .skip(6)
-                        .anyMatch(s -> s.equals("setInitialSurfaceControlProperties") || s.equals("createSurfaceLocked")));
+                        .anyMatch(frame -> frame.getDeclaringClass() != null &&
+                                frame.getDeclaringClass().getClassLoader() == systemServerCl &&
+                                (frame.getMethodName().equals("setInitialSurfaceControlProperties") ||
+                                        frame.getMethodName().equals("createSurfaceLocked"))));
                 if (match) return chain.proceed();
             } else {
                 var stackTrace = new Throwable().getStackTrace();
-                for (int i = 8; i < stackTrace.length && i < 12; i++) {
-                    var name = stackTrace[i].getMethodName();
-                    if (name.equals("setInitialSurfaceControlProperties") ||
-                            name.equals("createSurfaceLocked")) {
-                        return chain.proceed();
+                for (var frame : stackTrace) {
+                    var name = frame.getMethodName();
+                    try {
+                        if ((name.equals("setInitialSurfaceControlProperties") ||
+                                name.equals("createSurfaceLocked")) &&
+                                classLoader.loadClass(frame.getClassName()).getClassLoader() == systemServerCl) {
+                            return chain.proceed();
+                        }
+                    } catch (ClassNotFoundException ignored) {
                     }
                 }
             }
@@ -284,6 +289,7 @@ public class DisableFlagSecure extends XposedModule {
         var displayControlClazz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                 classLoader.loadClass("com.android.server.display.DisplayControl") :
                 SurfaceControl.class;
+        var systemServerCl = displayControlClazz.getClassLoader();
         var method = displayControlClazz.getDeclaredMethod(
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ?
                         "createVirtualDisplay" :
@@ -291,10 +297,14 @@ public class DisableFlagSecure extends XposedModule {
         hook(method).intercept(chain -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 var stackTrace = new Throwable().getStackTrace();
-                for (int i = 8; i < stackTrace.length && i < 12; i++) {
-                    var name = stackTrace[i].getMethodName();
-                    if (name.equals("createVirtualDisplayLocked")) {
-                        return chain.proceed();
+                for (var frame : stackTrace) {
+                    var name = frame.getMethodName();
+                    try {
+                        if (name.equals("createVirtualDisplayLocked") &&
+                                classLoader.loadClass(frame.getClassName()).getClassLoader() == systemServerCl) {
+                            return chain.proceed();
+                        }
+                    } catch (ClassNotFoundException ignored) {
                     }
                 }
             }

@@ -6,12 +6,16 @@ import android.app.AlertDialog;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.util.Log;
+import android.util.Pair;
 import android.view.SurfaceControl;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
+import java.lang.reflect.Executable;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
@@ -27,6 +31,8 @@ public class DisableFlagSecure extends XposedModule {
     private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
 
     private static XposedModule module;
+    private Pair<String, ClassLoader> param;
+    private final Set<String> hookedIds = new HashSet<>();
 
     @Override
     public void onModuleLoaded(@NonNull ModuleLoadedParam param) {
@@ -36,13 +42,17 @@ public class DisableFlagSecure extends XposedModule {
     @Override
     public void onSystemServerStarting(@NonNull SystemServerStartingParam param) {
         var classLoader = param.getClassLoader();
-
+        this.param = Pair.create("system", classLoader);
         try {
             deoptimizeSystemServer(classLoader);
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "deoptimize system server failed", t);
         }
 
+        hookSystemServer(classLoader);
+    }
+
+    private void hookSystemServer(ClassLoader classLoader) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // Screen record detection (V~Baklava)
             try {
@@ -141,8 +151,13 @@ public class DisableFlagSecure extends XposedModule {
         if (!param.isFirstPackage()) return;
 
         var classLoader = param.getClassLoader();
-        var pn = param.getPackageName();
-        switch (pn) {
+        var packageName = param.getPackageName();
+        this.param = Pair.create(packageName, classLoader);
+        hookPackage(packageName, classLoader);
+    }
+
+    private void hookPackage(String packageName, ClassLoader classLoader) {
+        switch (packageName) {
             case OPLUS_SCREENSHOT:
                 // Oplus Screenshot 15.0.0
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -167,7 +182,7 @@ public class DisableFlagSecure extends XposedModule {
                 }
             case SYSTEMUI:
             case MIUI_SCREENSHOT:
-                if (OPLUS_APPPLATFORM.equals(pn) || OPLUS_SCREENSHOT.equals(pn) ||
+                if (OPLUS_APPPLATFORM.equals(packageName) || OPLUS_SCREENSHOT.equals(packageName) ||
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     // ScreenCapture in App (S~T) (OPlus S~V)
                     // TODO: test Oplus Baklava
@@ -184,6 +199,36 @@ public class DisableFlagSecure extends XposedModule {
                 } catch (Throwable ignored) {
                 }
         }
+    }
+
+    @Override
+    public boolean onHotReloading(@NonNull HotReloadingParam param) {
+        param.setSavedInstanceState(this.param);
+        return true;
+    }
+
+    @Override
+    public void onHotReloaded(@NonNull HotReloadedParam param) {
+        var isSystemServer = param.isSystemServer();
+        if (param.getSavedInstanceState() instanceof Pair<?, ?> pair
+                && pair.first instanceof String packageName
+                && pair.second instanceof ClassLoader classLoader) {
+            this.param = Pair.create(packageName, classLoader);
+            try {
+                if (isSystemServer) {
+                    hookSystemServer(classLoader);
+                } else {
+                    hookPackage(packageName, classLoader);
+                }
+            } catch (Throwable tr) {
+                log(Log.ERROR, TAG, "Hot reload failed", tr);
+            }
+        }
+        param.getOldHookHandles().forEach(h -> {
+            if (!hookedIds.contains(h.getId())) {
+                h.unhook();
+            }
+        });
     }
 
     private void deoptimizeSystemServer(ClassLoader classLoader) throws ClassNotFoundException {
@@ -224,7 +269,7 @@ public class DisableFlagSecure extends XposedModule {
         var windowStateClazz = classLoader.loadClass("com.android.server.wm.WindowState");
         var systemServerCl = windowStateClazz.getClassLoader();
         var isSecureLockedMethod = windowStateClazz.getDeclaredMethod("isSecureLocked");
-        hook(isSecureLockedMethod).intercept(chain -> {
+        hookE(isSecureLockedMethod).intercept(chain -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 var walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
                 var match = walker.walk(frames -> frames
@@ -294,7 +339,7 @@ public class DisableFlagSecure extends XposedModule {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ?
                         "createVirtualDisplay" :
                         "createDisplay", String.class, boolean.class);
-        hook(method).intercept(chain -> {
+        hookE(method).intercept(chain -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 var stackTrace = new Throwable().getStackTrace();
                 for (var frame : stackTrace) {
@@ -342,7 +387,7 @@ public class DisableFlagSecure extends XposedModule {
         var iBinderClazz = classLoader.loadClass("android.os.IBinder");
         var iScreenCaptureObserverClazz = classLoader.loadClass("android.app.IScreenCaptureObserver");
         var method = activityTaskManagerServiceClazz.getDeclaredMethod("registerScreenCaptureObserver", iBinderClazz, iScreenCaptureObserverClazz);
-        hook(method).intercept(chain -> null);
+        hookE(method).intercept(chain -> null);
     }
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
@@ -350,13 +395,13 @@ public class DisableFlagSecure extends XposedModule {
         var windowManagerServiceClazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
         var iScreenRecordingCallbackClazz = classLoader.loadClass("android.window.IScreenRecordingCallback");
         var method = windowManagerServiceClazz.getDeclaredMethod("registerScreenRecordingCallback", iScreenRecordingCallbackClazz);
-        hook(method).intercept(chain -> false);
+        hookE(method).intercept(chain -> false);
     }
 
     private void hookActivityManagerService(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var activityTaskManagerServiceClazz = classLoader.loadClass("com.android.server.am.ActivityManagerService");
         var method = activityTaskManagerServiceClazz.getDeclaredMethod("checkPermission", String.class, int.class, int.class);
-        hook(method).intercept(chain -> {
+        hookE(method).intercept(chain -> {
             var permission = chain.getArg(0);
             if ("android.permission.CAPTURE_BLACKOUT_CONTENT".equals(permission)) {
                 var args = chain.getArgs().toArray();
@@ -379,14 +424,14 @@ public class DisableFlagSecure extends XposedModule {
                         "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
                         "android.view.SurfaceControl$ScreenshotHardwareBuffer");
         var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
-        hook(method).intercept(chain -> false);
+        hookE(method).intercept(chain -> false);
     }
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private void hookOplusScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var oplusScreenCaptureClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$CaptureArgs$Builder");
         var method = oplusScreenCaptureClazz.getDeclaredMethod("setUid", long.class);
-        hook(method).intercept(chain -> {
+        hookE(method).intercept(chain -> {
             var args = chain.getArgs().toArray();
             args[0] = -1;
             return chain.proceed(args);
@@ -408,12 +453,24 @@ public class DisableFlagSecure extends XposedModule {
         var list = Arrays.asList(names);
         Arrays.stream(clazz.getDeclaredMethods())
                 .filter(method -> list.contains(method.getName()))
-                .forEach(method -> hook(method).intercept(hooker));
+                .forEach(method -> hookE(method).intercept(hooker));
+    }
+
+    private HookBuilder hookE(Executable executable) {
+        var builder = hook(executable);
+
+        if (getApiVersion() >= 102) {
+            var id = executable.toGenericString();
+            builder.setId(id);
+            hookedIds.add(id);
+        }
+
+        return builder;
     }
 
     private void hookOnResume() throws NoSuchMethodException {
         var method = Activity.class.getDeclaredMethod("onResume");
-        hook(method).intercept(chain -> {
+        hookE(method).intercept(chain -> {
             var activity = (Activity) chain.getThisObject();
             new AlertDialog.Builder(activity)
                     .setTitle("Enable Screenshot")

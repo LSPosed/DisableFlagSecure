@@ -4,7 +4,7 @@ plugins {
 
 android {
     compileSdk {
-        version = release(36) {
+        version = release(37) {
             minorApiLevel = 1
         }
     }
@@ -13,7 +13,7 @@ android {
     defaultConfig {
         applicationId "io.github.lsposed.disableflagsecure"
         minSdkVersion 31
-        targetSdkVersion 36
+        targetSdkVersion 37
         versionCode rootProject.ext.commitCount
         versionName "5.0.1"
     }
@@ -70,6 +70,6 @@ android {
 }
 
 dependencies {
-    compileOnly 'androidx.annotation:annotation:1.9.1'
-    compileOnly 'io.github.libxposed:api:101.0.0'
+    compileOnly 'androidx.annotation:annotation:1.10.0'
+    compileOnly 'io.github.libxposed:api:102.0.0'
 }

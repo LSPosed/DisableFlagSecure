@@ -322,7 +322,7 @@ public class DisableFlagSecure extends XposedModule {
                     captureSecureLayersField.set(captureArgs, true);
                 }
             } catch (IllegalAccessException t) {
-                module.log(Log.ERROR, TAG, "ScreenCaptureHooker failed", t);
+                log(Log.ERROR, TAG, "ScreenCaptureHooker failed", t);
             }
             return chain.proceed();
         };
@@ -340,17 +340,16 @@ public class DisableFlagSecure extends XposedModule {
                         "createVirtualDisplay" :
                         "createDisplay", String.class, boolean.class);
         hookE(method).intercept(chain -> {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                var stackTrace = new Throwable().getStackTrace();
-                for (var frame : stackTrace) {
-                    var name = frame.getMethodName();
-                    try {
-                        if (name.equals("createVirtualDisplayLocked") &&
-                                classLoader.loadClass(frame.getClassName()).getClassLoader() == systemServerCl) {
-                            return chain.proceed();
-                        }
-                    } catch (ClassNotFoundException ignored) {
+            var stackTrace = new Throwable().getStackTrace();
+            for (var frame : stackTrace) {
+                var name = frame.getMethodName();
+                try {
+                    if ((name.equals("createVirtualDisplayLocked") || name.equals("addDisplayDeviceLocked")) &&
+                            classLoader.loadClass(frame.getClassName()).getClassLoader() == systemServerCl) {
+                        return chain.proceed();
                     }
+                } catch (ClassNotFoundException e) {
+                    log(Log.ERROR, TAG, "hook DisplayControl failed", e);
                 }
             }
             var args = chain.getArgs().toArray();
@@ -376,7 +375,7 @@ public class DisableFlagSecure extends XposedModule {
                     return chain.proceed(args);
                 }
             }
-            module.log(Log.WARN, TAG, "flag not found in CreateVirtualDisplayLockedHooker");
+            log(Log.WARN, TAG, "flag not found in CreateVirtualDisplayLockedHooker");
             return chain.proceed();
         }, "createVirtualDisplayLocked");
     }

@@ -192,6 +192,15 @@ public class DisableFlagSecure extends XposedModule {
                         log(Log.ERROR, TAG, "hook ScreenCapture failed", t);
                     }
                 }
+                if (SYSTEMUI.equals(packageName) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                    try {
+                        hookOneUiSystemUiScreenshot(classLoader);
+                    } catch (Throwable t) {
+                        if (!(t instanceof ClassNotFoundException)) {
+                            log(Log.ERROR, TAG, "hook OneUI SystemUI screenshot failed", t);
+                        }
+                    }
+                }
                 break;
             default:
                 try {
@@ -444,9 +453,47 @@ public class DisableFlagSecure extends XposedModule {
         hookMethods(longshotMainClazz, chain -> false, "hasSecure");
     }
 
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private void hookOneUiSystemUiScreenshot(ClassLoader classLoader) throws ClassNotFoundException {
+        var screenshotDataClazz = classLoader.loadClass("com.android.systemui.screenshot.ScreenshotData");
+        var hookedConstructorCount = 0;
+        for (var constructor : screenshotDataClazz.getDeclaredConstructors()) {
+            if (!OneUiSystemUiScreenshotHook.isScreenshotDataConstructor(constructor)) {
+                continue;
+            }
+            hookedConstructorCount++;
+            hookE(constructor).intercept(chain -> {
+                var args = chain.getArgs().toArray();
+                OneUiSystemUiScreenshotHook.clearWorkProfileSecureLayer(args);
+                return chain.proceed(args);
+            });
+        }
+        if (hookedConstructorCount > 0) {
+            log(Log.INFO, TAG, "Hooked One UI Work Profile ScreenshotData constructors (count="
+                    + hookedConstructorCount + ")");
+        } else {
+            log(Log.WARN, TAG, "no supported ScreenshotData constructor was found");
+        }
+    }
+
     private void hookOneUI(ClassLoader classLoader) throws ClassNotFoundException {
         var wmScreenshotControllerClazz = classLoader.loadClass("com.android.server.wm.WmScreenshotController");
         hookMethods(wmScreenshotControllerClazz, chain -> true, "canBeScreenshotTarget");
+
+        Arrays.stream(wmScreenshotControllerClazz.getDeclaredMethods())
+                .filter(OneUiWmScreenshotHook::isScreenshotAllowedByPolicyMethod)
+                .forEach(method -> hookE(method).intercept(chain -> {
+                    var allowed = (boolean) chain.proceed();
+                    return OneUiWmScreenshotHook.narrowScreenshotPolicyResult(chain.getThisObject(), allowed);
+                }));
+
+        Arrays.stream(wmScreenshotControllerClazz.getDeclaredMethods())
+                .filter(OneUiWmScreenshotHook::isPrimaryProfileScreenshotMethod)
+                .forEach(method -> hookE(method).intercept(chain -> {
+                    var args = chain.getArgs().toArray();
+                    OneUiWmScreenshotHook.forceIgnoreSecureContentPolicy(args);
+                    return chain.proceed(args);
+                }));
     }
 
     private void hookMethods(Class<?> clazz, Hooker hooker, String... names) {

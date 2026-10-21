@@ -1,6 +1,6 @@
 plugins {
-    id 'com.android.application' version '9.3.1' apply false
-    id 'org.lsposed.lsplugin.jgit' version "1.1"
+    id 'com.android.application' version '9.4.1' apply false
+    id 'org.lsposed.lsplugin.jgit' version "1.2"
 }
 
 tasks.register('clean', Delete) {
@@ -13,4 +13,4 @@ tasks.named("updateDaemonJvm") {
 }
 
 var repo = jgit.repo(true)
-ext.commitCount = repo.commitCount('refs/remotes/origin/main')
+ext.commitCount = repo.version('refs/remotes/origin/main').get().commitCount

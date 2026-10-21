@@ -29,6 +29,7 @@ public class DisableFlagSecure extends XposedModule {
     private static final String OPLUS_SCREENSHOT = "com.oplus.screenshot";
     private static final String FLYME_SYSTEMUIEX = "com.flyme.systemuiex";
     private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
+    private static final String OPLUS_SCREENRECORDER = "com.oplus.screenrecorder";
 
     private static XposedModule module;
     private Pair<String, ClassLoader> param;
@@ -169,6 +170,13 @@ public class DisableFlagSecure extends XposedModule {
                         }
                     }
                 }
+                try {
+                    hookOplusHardwareBuffer(classLoader);
+                } catch (Throwable t) {
+                    if (!(t instanceof ClassNotFoundException)) {
+                        log(Log.ERROR, TAG, "hook Oplus ScreenshotHardwareBuffer failed", t);
+                    }
+                }
             case FLYME_SYSTEMUIEX:
             case OPLUS_APPPLATFORM:
                 // Flyme SystemUI Ext 10.3.0
@@ -190,6 +198,22 @@ public class DisableFlagSecure extends XposedModule {
                         hookScreenCapture(classLoader);
                     } catch (Throwable t) {
                         log(Log.ERROR, TAG, "hook ScreenCapture failed", t);
+                    }
+                }
+                break;
+            case OPLUS_SCREENRECORDER:
+                try {
+                    hookOplusHardwareBuffer(classLoader);
+                } catch (Throwable t) {
+                    if (!(t instanceof ClassNotFoundException)) {
+                        log(Log.ERROR, TAG, "hook Oplus ScreenshotHardwareBuffer failed", t);
+                    }
+                }
+                try {
+                    hookOplusInfoMonitor(classLoader);
+                } catch (Throwable t) {
+                    if (!(t instanceof ClassNotFoundException)) {
+                        log(Log.ERROR, TAG, "hook OplusInfoMonitor failed", t);
                     }
                 }
                 break;
@@ -470,6 +494,28 @@ public class DisableFlagSecure extends XposedModule {
         }
 
         return builder;
+    }
+
+    private void hookOplusHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var clazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$ScreenshotHardwareBuffer");
+        var method = clazz.getDeclaredMethod("containsSecureLayers");
+        hookE(method).intercept(chain -> false);
+    }
+
+    private void hookOplusInfoMonitor(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        var oplusInfoMonitorClazz = classLoader.loadClass("com.oplus.display.OplusInfoMonitor");
+        var listenerClazz = classLoader.loadClass("com.oplus.display.OplusInfoMonitor$OplusInfoMonitorListener");
+        var method = oplusInfoMonitorClazz.getDeclaredMethod("registerSfEvent", listenerClazz, int.class, String.class);
+        hookE(method).intercept(chain -> {
+            var listener = chain.getArg(0);
+            var tag = chain.getArg(2);
+            if ("com.oplus.screenrecordersecure".equals(tag)
+                    && listener != null
+                    && listener.getClass().getName().startsWith("com.oplus.screenrecorder.")) {
+                return null;
+            }
+            return chain.proceed();
+        });
     }
 
     private void hookOnResume() throws NoSuchMethodException {

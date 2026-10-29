@@ -11,10 +11,11 @@ Enabling screenshots in apps that normally wouldn\'t allow it, and disabling scr
 
 ## Android 17 status
 
-Android 17 (API 37) compatibility is **experimental, pending device validation**.
+Android 17 (API 37) compatibility is **experimental**. FLAG_SECURE screenshots
+have been successfully tested on a physical device running **ColorOS 17.0.0.100**.
 The module handles AOSP's `ScreenCaptureInternal` and `ScreenCaptureParams`
 capture paths, with separate optional ColorOS 17 screenshot/recorder hooks.
-This is not a claim of verified Android 17 support.
+Other Android 17 builds and recording paths still require device validation.
 
 Use the recommended scope; `com.oplus.screenrecorder` is only needed for the
 optional OPlus recorder integration. Ordinary target apps do not belong in scope.

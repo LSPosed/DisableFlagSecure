@@ -13,9 +13,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
@@ -29,6 +32,11 @@ public class DisableFlagSecure extends XposedModule {
     private static final String OPLUS_SCREENSHOT = "com.oplus.screenshot";
     private static final String FLYME_SYSTEMUIEX = "com.flyme.systemuiex";
     private static final String MIUI_SCREENSHOT = "com.miui.screenshot";
+    private static final String OPLUS_SCREENRECORDER = "com.oplus.screenrecorder";
+    private static final int ANDROID_17 = 37;
+    private static final int SECURE_CONTENT_POLICY_CAPTURE = 1;
+    private static final int CAPTURE_MODE_NONE = 0;
+    private static final int CAPTURE_MODE_REQUIRE_OPTIMIZED = 1;
 
     private static XposedModule module;
     private Pair<String, ClassLoader> param;
@@ -53,6 +61,13 @@ public class DisableFlagSecure extends XposedModule {
     }
 
     private void hookSystemServer(ClassLoader classLoader) {
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            try {
+                hookAndroid17ScreenCaptureParams(classLoader);
+            } catch (Throwable t) {
+                log(Log.WARN, TAG, "Android 17 WMS.screenCapture skipped", t);
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // Screen record detection (V~Baklava)
             try {
@@ -114,7 +129,9 @@ public class DisableFlagSecure extends XposedModule {
         try {
             hookScreenshotHardwareBuffer(classLoader);
         } catch (Throwable t) {
-            if (!(t instanceof ClassNotFoundException)) {
+            if (Build.VERSION.SDK_INT >= ANDROID_17) {
+                log(Log.WARN, TAG, "Android 17 ScreenshotHardwareBuffer skipped", t);
+            } else if (!(t instanceof ClassNotFoundException)) {
                 log(Log.ERROR, TAG, "hook ScreenshotHardwareBuffer failed", t);
             }
         }
@@ -159,6 +176,9 @@ public class DisableFlagSecure extends XposedModule {
     private void hookPackage(String packageName, ClassLoader classLoader) {
         switch (packageName) {
             case OPLUS_SCREENSHOT:
+                if (Build.VERSION.SDK_INT >= ANDROID_17) {
+                    hookOplusHardwareBuffer(classLoader);
+                }
                 // Oplus Screenshot 15.0.0
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
                     try {
@@ -182,6 +202,14 @@ public class DisableFlagSecure extends XposedModule {
                 }
             case SYSTEMUI:
             case MIUI_SCREENSHOT:
+                if (Build.VERSION.SDK_INT >= ANDROID_17
+                        && (SYSTEMUI.equals(packageName) || MIUI_SCREENSHOT.equals(packageName))) {
+                    try {
+                        hookScreenshotHardwareBuffer(classLoader);
+                    } catch (Throwable t) {
+                        log(Log.WARN, TAG, "Android 17 ScreenshotHardwareBuffer skipped", t);
+                    }
+                }
                 if (OPLUS_APPPLATFORM.equals(packageName) || OPLUS_SCREENSHOT.equals(packageName) ||
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     // ScreenCapture in App (S~T) (OPlus S~V)
@@ -191,6 +219,12 @@ public class DisableFlagSecure extends XposedModule {
                     } catch (Throwable t) {
                         log(Log.ERROR, TAG, "hook ScreenCapture failed", t);
                     }
+                }
+                break;
+            case OPLUS_SCREENRECORDER:
+                if (Build.VERSION.SDK_INT >= ANDROID_17) {
+                    hookOplusHardwareBuffer(classLoader);
+                    hookOplusInfoMonitor(classLoader);
                 }
                 break;
             default:
@@ -276,7 +310,10 @@ public class DisableFlagSecure extends XposedModule {
                         .anyMatch(frame -> frame.getDeclaringClass() != null &&
                                 frame.getDeclaringClass().getClassLoader() == systemServerCl &&
                                 (frame.getMethodName().equals("setInitialSurfaceControlProperties") ||
-                                        frame.getMethodName().equals("createSurfaceLocked"))));
+                                        frame.getMethodName().equals("createSurfaceLocked") ||
+                                        (Build.VERSION.SDK_INT >= ANDROID_17 &&
+                                                (frame.getMethodName().equals("relayoutWindow") ||
+                                                        frame.getMethodName().equals("refreshSecureSurfaceState"))))));
                 if (match) return chain.proceed();
             } else {
                 var stackTrace = new Throwable().getStackTrace();
@@ -294,9 +331,16 @@ public class DisableFlagSecure extends XposedModule {
             }
             return false;
         });
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            log(Log.INFO, TAG, "Android 17 WindowState.isSecureLocked installed; surface updates preserved");
+        }
     }
 
     private void hookScreenCapture(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            hookAndroid17ScreenCapture(classLoader);
+            return;
+        }
         Class<?> screenCaptureClazz;
         Class<?> captureArgsClazz;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
@@ -330,7 +374,102 @@ public class DisableFlagSecure extends XposedModule {
         hookMethods(screenCaptureClazz, hooker, "nativeCaptureLayers");
     }
 
+    private static Field intField(Class<?> clazz, String name) throws NoSuchFieldException {
+        var field = clazz.getDeclaredField(name);
+        if (field.getType() != int.class || Modifier.isStatic(field.getModifiers())) {
+            throw new NoSuchFieldException(clazz.getName() + "." + name + " is not an instance int");
+        }
+        field.setAccessible(true);
+        return field;
+    }
+
+    private void hookAndroid17ScreenCapture(ClassLoader classLoader)
+            throws ClassNotFoundException, NoSuchFieldException {
+        var clazz = classLoader.loadClass("android.window.ScreenCaptureInternal");
+        var captureArgsClazz = classLoader.loadClass("android.window.ScreenCaptureInternal$CaptureArgs");
+        var policy = intField(captureArgsClazz, "mSecureContentPolicy");
+        Field captureMode = null;
+        try {
+            captureMode = intField(captureArgsClazz, "mCaptureMode");
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Android 17 native capture mode fallback unavailable", t);
+        }
+        var mode = captureMode;
+        for (var name : new String[]{"nativeCaptureDisplay", "nativeCaptureLayers"}) {
+            try {
+                var argsClazz = classLoader.loadClass("android.window.ScreenCaptureInternal$"
+                        + (name.equals("nativeCaptureDisplay") ? "DisplayCaptureArgs" : "LayerCaptureArgs"));
+                var method = name.equals("nativeCaptureDisplay")
+                        ? clazz.getDeclaredMethod(name, argsClazz, long.class)
+                        : clazz.getDeclaredMethod(name, argsClazz, long.class, boolean.class);
+                if (!captureArgsClazz.isAssignableFrom(argsClazz)
+                        || !Modifier.isStatic(method.getModifiers()) || method.getReturnType() != int.class) {
+                    throw new NoSuchMethodException(method.toString());
+                }
+                var invoked = new AtomicBoolean();
+                var failed = new AtomicBoolean();
+                hookE(method).intercept(chain -> {
+                    try {
+                        var args = chain.getArg(0);
+                        policy.setInt(args, SECURE_CONTENT_POLICY_CAPTURE);
+                        // REQUIRE_OPTIMIZED cannot fall back when DPU readback is unavailable.
+                        if (mode != null && mode.getInt(args) == CAPTURE_MODE_REQUIRE_OPTIMIZED) {
+                            mode.setInt(args, CAPTURE_MODE_NONE);
+                        }
+                        if (invoked.compareAndSet(false, true)) {
+                            module.log(Log.INFO, TAG, "Android 17 " + name + " invoked; secure policy=1");
+                        }
+                    } catch (Throwable t) {
+                        if (failed.compareAndSet(false, true)) {
+                            module.log(Log.ERROR, TAG, "Android 17 " + name + " parameter update failed", t);
+                        }
+                    }
+                    return chain.proceed();
+                });
+                log(Log.INFO, TAG, "Android 17 installed " + method.toGenericString());
+            } catch (Throwable t) {
+                log(Log.WARN, TAG, "Android 17 " + name + " skipped", t);
+            }
+        }
+    }
+
+    private void hookAndroid17ScreenCaptureParams(ClassLoader classLoader)
+            throws ClassNotFoundException, NoSuchFieldException, NoSuchMethodException {
+        var paramsClazz = classLoader.loadClass("android.window.ScreenCapture$ScreenCaptureParams");
+        var policy = intField(paramsClazz, "mSecureContentPolicy");
+        var mode = intField(paramsClazz, "mCaptureMode");
+        var clazz = classLoader.loadClass("com.android.server.wm.WindowManagerService");
+        var callbackClazz = classLoader.loadClass("android.window.IScreenCaptureCallback");
+        var method = clazz.getDeclaredMethod("screenCapture", paramsClazz, callbackClazz);
+        var invoked = new AtomicBoolean();
+        var failed = new AtomicBoolean();
+        hookE(method).intercept(chain -> {
+            try {
+                var args = chain.getArg(0);
+                policy.setInt(args, SECURE_CONTENT_POLICY_CAPTURE);
+                // WMS otherwise overwrites the secure policy with THROW_EXCEPTION in this mode.
+                if (mode.getInt(args) == CAPTURE_MODE_REQUIRE_OPTIMIZED) {
+                    mode.setInt(args, CAPTURE_MODE_NONE);
+                }
+                if (invoked.compareAndSet(false, true)) {
+                    module.log(Log.INFO, TAG, "Android 17 WMS.screenCapture invoked; secure policy=1");
+                }
+            } catch (Throwable t) {
+                if (failed.compareAndSet(false, true)) {
+                    module.log(Log.ERROR, TAG, "Android 17 ScreenCaptureParams update failed", t);
+                }
+            }
+            return chain.proceed();
+        });
+        log(Log.INFO, TAG, "Android 17 WMS.screenCapture(ScreenCaptureParams, callback) installed");
+    }
+
     private void hookDisplayControl(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            // The adapter uses a six-argument overload now. Only projection displays need changing.
+            log(Log.INFO, TAG, "Android 17 DisplayControl unchanged; secure projection handled by VirtualDisplayAdapter");
+            return;
+        }
         var displayControlClazz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                 classLoader.loadClass("com.android.server.display.DisplayControl") :
                 SurfaceControl.class;
@@ -361,6 +500,10 @@ public class DisableFlagSecure extends XposedModule {
 
     private void hookVirtualDisplayAdapter(ClassLoader classLoader) throws ClassNotFoundException {
         var displayControlClazz = classLoader.loadClass("com.android.server.display.VirtualDisplayAdapter");
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            hookAndroid17VirtualDisplayAdapter(displayControlClazz, classLoader);
+            return;
+        }
         hookMethods(displayControlClazz, chain -> {
             var caller = (int) chain.getArg(2);
             if (caller >= 10000 && chain.getArg(1) == null) {
@@ -379,6 +522,30 @@ public class DisableFlagSecure extends XposedModule {
             module.log(Log.WARN, TAG, "flag not found in CreateVirtualDisplayLockedHooker");
             return chain.proceed();
         }, "createVirtualDisplayLocked");
+    }
+
+    private void hookAndroid17VirtualDisplayAdapter(Class<?> clazz, ClassLoader classLoader) {
+        try {
+            var method = clazz.getDeclaredMethod("createVirtualDisplayLocked",
+                    classLoader.loadClass("android.hardware.display.IVirtualDisplayCallback"),
+                    classLoader.loadClass("android.media.projection.IMediaProjection"),
+                    int.class, String.class, String.class,
+                    classLoader.loadClass("android.view.Surface"), int.class,
+                    classLoader.loadClass("android.hardware.display.VirtualDisplayConfig"));
+            var invoked = new AtomicBoolean();
+            hookE(method).intercept(chain -> {
+                if (chain.getArg(1) == null) return chain.proceed();
+                var args = chain.getArgs().toArray();
+                args[6] = (int) args[6] | DisplayManager.VIRTUAL_DISPLAY_FLAG_SECURE;
+                if (invoked.compareAndSet(false, true)) {
+                    module.log(Log.INFO, TAG, "Android 17 MediaProjection virtual display invoked; secure=true");
+                }
+                return chain.proceed(args);
+            });
+            log(Log.INFO, TAG, "Android 17 VirtualDisplayAdapter.createVirtualDisplayLocked installed");
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Android 17 VirtualDisplayAdapter skipped", t);
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -420,11 +587,16 @@ public class DisableFlagSecure extends XposedModule {
 
     private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
         var screenshotHardwareBufferClazz = classLoader.loadClass(
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
+                Build.VERSION.SDK_INT >= ANDROID_17 ?
+                        "android.window.ScreenCaptureInternal$ScreenshotHardwareBuffer" :
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
                         "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
                         "android.view.SurfaceControl$ScreenshotHardwareBuffer");
         var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
         hookE(method).intercept(chain -> false);
+        if (Build.VERSION.SDK_INT >= ANDROID_17) {
+            log(Log.INFO, TAG, "Android 17 ScreenCaptureInternal.ScreenshotHardwareBuffer.containsSecureLayers installed");
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
@@ -442,6 +614,49 @@ public class DisableFlagSecure extends XposedModule {
         // caller: com.android.server.wm.OplusLongshotWindowDump#dumpWindows
         var longshotMainClazz = classLoader.loadClass("com.android.server.wm.OplusLongshotMainWindow");
         hookMethods(longshotMainClazz, chain -> false, "hasSecure");
+    }
+
+    private void hookOplusHardwareBuffer(ClassLoader classLoader) {
+        try {
+            var clazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$ScreenshotHardwareBuffer");
+            var method = clazz.getDeclaredMethod("containsSecureLayers");
+            if (method.getReturnType() != boolean.class) throw new NoSuchMethodException(method.toString());
+            hookE(method).intercept(chain -> false);
+            log(Log.INFO, TAG, "Android 17 optional Oplus ScreenshotHardwareBuffer installed");
+        } catch (ClassNotFoundException | NoSuchMethodException t) {
+            log(Log.INFO, TAG, "Android 17 optional Oplus ScreenshotHardwareBuffer absent; skipped");
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Android 17 optional Oplus ScreenshotHardwareBuffer skipped", t);
+        }
+    }
+
+    private void hookOplusInfoMonitor(ClassLoader classLoader) {
+        try {
+            var clazz = classLoader.loadClass("com.oplus.display.OplusInfoMonitor");
+            var installed = false;
+            for (var method : clazz.getDeclaredMethods()) {
+                var types = method.getParameterTypes();
+                if (!method.getName().equals("registerSfEvent") || types.length < 3
+                        || types[0].isPrimitive() || types[2] != String.class
+                        || method.getReturnType() != void.class) continue;
+                hookE(method).intercept(chain -> {
+                    var listener = chain.getArg(0);
+                    if ("com.oplus.screenrecordersecure".equals(chain.getArg(2))
+                            && listener != null
+                            && listener.getClass().getName().startsWith("com.oplus.screenrecorder.")) {
+                        return null;
+                    }
+                    return chain.proceed();
+                });
+                installed = true;
+                log(Log.INFO, TAG, "Android 17 optional Oplus installed " + method.toGenericString());
+            }
+            if (!installed) log(Log.INFO, TAG, "Android 17 optional Oplus registerSfEvent signature absent; skipped");
+        } catch (ClassNotFoundException t) {
+            log(Log.INFO, TAG, "Android 17 optional OplusInfoMonitor absent; skipped");
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Android 17 optional OplusInfoMonitor skipped", t);
+        }
     }
 
     private void hookOneUI(ClassLoader classLoader) throws ClassNotFoundException {

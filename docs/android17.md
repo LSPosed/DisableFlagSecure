@@ -1,13 +1,14 @@
 # Android 17 compatibility: experimental
 
-Status on 2026-10-30: the tester reports successful FLAG_SECURE screenshots on a
-physical Android 17 device running **ColorOS 17.0.0.100**. The module bypassed
-the screenshot restriction and captured the window content.
+Status on 2026-10-30: the tester reports successful FLAG_SECURE screenshots and
+screen recording on a physical Android 17 device running **ColorOS 17.0.0.100**.
+The module bypassed the screenshot restriction and captured the window content.
 
 No device was connected to the build host; this device result was supplied by
-the tester. The specific screenshot entry point was not identified. Independent
-AOSP device tests, recording, device stability, module-disable recovery, and
-Android 16 device regressions remain unverified. Android 17 must not be moved
+the tester. The specific screenshot entry point and recording mode were not
+identified. Independent AOSP device tests, individual recording modes, device
+stability, module-disable recovery, and Android 16 device regressions remain
+unverified. Android 17 must not be moved
 into the broadly supported OS list until the device matrix below passes.
 
 ## Source audit
@@ -238,15 +239,16 @@ does not route it through the Java hooks or change its default capture policy.
 | Debug compilation / lint | Passed; 0 errors, 5 warnings in unchanged files | Successful build / no new lint errors |
 | Host callback harness | Passed; 61 assertions | All assertions pass; no pixel claims |
 | FLAG_SECURE screenshot | Passed on ColorOS 17.0.0.100, reported by the tester | Window content captured despite FLAG_SECURE |
+| Screen recording | Passed on ColorOS 17.0.0.100, reported by the tester | Recorded content is visible |
 | Ordinary + FLAG_SECURE system screenshot entry-point matrix | Specific entry points and ordinary-window control not reported | Both contain correct pixels when enabled |
 | Volume-down + power | Pending device | Saved screenshot contains secure test content |
 | New ScreenCaptureParams API, including optimized requests | Pending privileged test client | Capture succeeds with ordinary secure content |
-| MediaProjection full-display + single-app | Pending device | Readable recording; normal consent/stop behavior |
+| MediaProjection full-display + single-app | Recording passed; individual modes and consent/stop behavior not reported | Readable recording; normal consent/stop behavior |
 | Native adb screencap | Pending device; known path limitation | Record actual result separately |
 | Module disabled and rebooted | Pending device | Original protection restored |
 | Android 16 and QPR regression | Host routing only; device pending | Existing screenshots/recording still work |
 | system_server / SystemUI stability | Pending device | No new crashes or process restarts |
-| Optional ColorOS screenshot/recorder hooks | ColorOS screenshot passed; recorder and individual hook hits not reported | Both capture ordinary FLAG_SECURE test content |
+| Optional ColorOS screenshot/recorder hooks | ColorOS screenshot and recording passed; individual hook hits not reported | Both capture ordinary FLAG_SECURE test content |
 
 Widevine L1, hardware DRM, protected HardwareBuffers, device policy enforcement,
 OEM capture stacks outside the observed signatures, and native callers with

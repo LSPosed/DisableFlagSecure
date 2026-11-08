@@ -110,7 +110,7 @@ public class DisableFlagSecure extends XposedModule {
             log(Log.ERROR, TAG, "hook VirtualDisplayAdapter failed", t);
         }
 
-        // OneUI
+        // OneUI, Android 17 ScreenCaptureInternal, Oplus
         try {
             hookScreenshotHardwareBuffer(classLoader);
         } catch (Throwable t) {
@@ -419,12 +419,42 @@ public class DisableFlagSecure extends XposedModule {
     }
 
     private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var screenshotHardwareBufferClazz = classLoader.loadClass(
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
-                        "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
-                        "android.view.SurfaceControl$ScreenshotHardwareBuffer");
-        var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
-        hookE(method).intercept(chain -> false);
+        Throwable aospFailure = null;
+        try {
+            String className;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                className = "android.window.ScreenCaptureInternal$ScreenshotHardwareBuffer";
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                className = "android.window.ScreenCapture$ScreenshotHardwareBuffer";
+            } else {
+                className = "android.view.SurfaceControl$ScreenshotHardwareBuffer";
+            }
+            var screenshotHardwareBufferClazz = classLoader.loadClass(className);
+            var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
+            hookE(method).intercept(chain -> false);
+        } catch (Throwable t) {
+            aospFailure = t;
+        }
+
+        // Oplus screenshot app (oplus-framework.jar) has its own ScreenshotHardwareBuffer
+        try {
+            var oplusClazz = classLoader.loadClass("com.oplus.screenshot.OplusScreenCapture$ScreenshotHardwareBuffer");
+            hookMethods(oplusClazz, chain -> false, "containsSecureLayers");
+        } catch (ClassNotFoundException ignored) {
+            // not an Oplus device
+        } catch (Throwable t) {
+            log(Log.ERROR, TAG, "hook Oplus ScreenshotHardwareBuffer failed", t);
+        }
+
+        if (aospFailure instanceof ClassNotFoundException) {
+            throw (ClassNotFoundException) aospFailure;
+        } else if (aospFailure instanceof NoSuchMethodException) {
+            throw (NoSuchMethodException) aospFailure;
+        } else if (aospFailure instanceof RuntimeException) {
+            throw (RuntimeException) aospFailure;
+        } else if (aospFailure instanceof Error) {
+            throw (Error) aospFailure;
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)

@@ -419,10 +419,14 @@ public class DisableFlagSecure extends XposedModule {
     }
 
     private void hookScreenshotHardwareBuffer(ClassLoader classLoader) throws ClassNotFoundException, NoSuchMethodException {
-        var screenshotHardwareBufferClazz = classLoader.loadClass(
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
-                        "android.window.ScreenCapture$ScreenshotHardwareBuffer" :
-                        "android.view.SurfaceControl$ScreenshotHardwareBuffer");
+        Class<?> screenshotHardwareBufferClazz;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+            screenshotHardwareBufferClazz = classLoader.loadClass("android.window.ScreenCaptureInternal$ScreenshotHardwareBuffer");
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            screenshotHardwareBufferClazz = classLoader.loadClass("android.window.ScreenCapture$ScreenshotHardwareBuffer");
+        } else {
+            screenshotHardwareBufferClazz = classLoader.loadClass("android.view.SurfaceControl$ScreenshotHardwareBuffer");
+        }
         var method = screenshotHardwareBufferClazz.getDeclaredMethod("containsSecureLayers");
         hookE(method).intercept(chain -> false);
     }

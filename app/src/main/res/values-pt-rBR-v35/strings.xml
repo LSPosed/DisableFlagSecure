@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="xposed_description">Ativa a captura de tela em apps que normalmente não permitem e desativa a detecção de captura e gravação de tela.</string>
+</resources>
